@@ -1,0 +1,1217 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VTT RPG - Table de Jeu Virtuelle</title>
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Client Socket.io fourni par le serveur -->
+  <script src="/socket.io/socket.io.js"></script>
+  <!-- Librairie Confetti pour la réussite critique -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <!-- Google Fonts : Cinzel & MedievalSharp pour les titres, Crimson Text pour la lecture -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400&family=MedievalSharp&display=swap" rel="stylesheet">
+  <style>
+    /* Typographies RPG */
+    .font-medieval {
+      font-family: 'MedievalSharp', cursive, serif;
+    }
+    .font-cinzel {
+      font-family: 'Cinzel', serif;
+    }
+    .font-crimson {
+      font-family: 'Crimson Text', serif;
+    }
+
+    /* Effets de textures et bordures forgées / pierre taillée */
+    .stone-card {
+      background: radial-gradient(circle at 50% 20%, #292524 0%, #1c1917 80%, #0c0a09 100%);
+      box-shadow: inset 0 0 30px rgba(0,0,0,0.8), 0 10px 25px -5px rgba(0, 0, 0, 0.7);
+    }
+    .parchment-sheet {
+      background: #f4e4bc;
+      background-image: 
+        radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.4) 0%, rgba(0,0,0,0.08) 100%),
+        linear-gradient(to right, rgba(139, 69, 19, 0.05) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(139, 69, 19, 0.05) 1px, transparent 1px);
+      box-shadow: 
+        inset 0 0 35px rgba(115, 65, 20, 0.45),
+        0 15px 35px -5px rgba(0, 0, 0, 0.8),
+        0 0 0 1px rgba(92, 45, 12, 0.3);
+    }
+
+    /* Bouton Sceau de Cire / Plaque de métal gravée */
+    .wax-seal-btn {
+      background: linear-gradient(135deg, #991b1b 0%, #7f1d1d 50%, #450a0a 100%);
+      box-shadow: 
+        inset 0 1px 2px rgba(254, 202, 202, 0.5),
+        inset 0 -3px 5px rgba(0,0,0,0.6),
+        0 6px 15px rgba(0,0,0,0.7),
+        0 0 0 2px #b91c1c;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .wax-seal-btn:hover {
+      background: linear-gradient(135deg, #b91c1c 0%, #991b1b 50%, #7f1d1d 100%);
+      transform: translateY(-2px) scale(1.01);
+      box-shadow: 
+        inset 0 1px 3px rgba(254, 202, 202, 0.7),
+        inset 0 -3px 6px rgba(0,0,0,0.7),
+        0 10px 25px rgba(185, 28, 28, 0.4),
+        0 0 0 2px #f87171;
+    }
+    .wax-seal-btn:active {
+      transform: translateY(1px);
+      box-shadow: inset 0 3px 6px rgba(0,0,0,0.8), 0 2px 5px rgba(0,0,0,0.8);
+    }
+
+    /* Cartes sélectionnables de Race et Classe */
+    .select-card {
+      transition: all 0.2s ease-out;
+      cursor: pointer;
+    }
+    .select-card:hover {
+      border-color: #d97706;
+      background-color: #292524;
+      transform: translateY(-2px);
+    }
+    .select-card.selected {
+      border-color: #f59e0b;
+      background: linear-gradient(180deg, #292524 0%, #451a03 100%);
+      box-shadow: 0 0 18px rgba(245, 158, 11, 0.35), inset 0 0 12px rgba(245, 158, 11, 0.2);
+    }
+
+    @keyframes screenShake {
+      0%, 100% { transform: translate(0, 0) rotate(0deg); }
+      10%, 30%, 50%, 70%, 90% { transform: translate(-8px, 6px) rotate(-1.5deg); }
+      20%, 40%, 60%, 80% { transform: translate(8px, -6px) rotate(1.5deg); }
+    }
+    .shake-active {
+      animation: screenShake 0.75s cubic-bezier(.36,.07,.19,.97) both;
+    }
+    @keyframes pulseGlow {
+      0%, 100% { transform: scale(1); filter: drop-shadow(0 0 25px rgba(239, 68, 68, 0.8)); }
+      50% { transform: scale(1.04); filter: drop-shadow(0 0 45px rgba(239, 68, 68, 1)); }
+    }
+    .crit-glow-fail {
+      animation: pulseGlow 0.8s infinite;
+    }
+    @keyframes critGlowSuccess {
+      0%, 100% { transform: scale(1); filter: drop-shadow(0 0 25px rgba(16, 185, 129, 0.8)); }
+      50% { transform: scale(1.04); filter: drop-shadow(0 0 50px rgba(245, 158, 11, 1)); }
+    }
+    .crit-glow-success {
+      animation: critGlowSuccess 0.8s infinite;
+    }
+    @keyframes slotRoll {
+      0% { transform: translateY(-15%) scale(0.9); opacity: 0.6; }
+      50% { transform: translateY(0) scale(1.08); opacity: 1; }
+      100% { transform: translateY(15%) scale(0.9); opacity: 0.6; }
+    }
+    .slot-rolling {
+      animation: slotRoll 0.12s linear infinite;
+    }
+    @keyframes finalZoomImpact {
+      0% { transform: scale(0.3); opacity: 0; }
+      60% { transform: scale(1.35); opacity: 1; }
+      80% { transform: scale(0.95); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .final-zoom-impact {
+      animation: finalZoomImpact 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+    }
+  </style>
+</head>
+<body id="app-body" class="min-h-full flex flex-col antialiased bg-slate-950 selection:bg-amber-500 selection:text-slate-950 transition-transform">
+
+  <!-- ======================================================== -->
+  <!-- 1. BARRE DE NAVIGATION (NAVBAR SPA)                      -->
+  <!-- ======================================================== -->
+  <header class="border-b border-slate-800 bg-slate-900/95 backdrop-blur sticky top-0 z-30 px-4 sm:px-6 py-3">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+      
+      <!-- Logo et Titre -->
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">⚔️</span>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-lg font-bold tracking-tight text-amber-400">VTT RPG</h1>
+            <span class="text-[10px] font-semibold uppercase px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
+              VTT Hub
+            </span>
+          </div>
+          <p class="text-xs text-slate-400 hidden sm:block">Table de Jeu Virtuelle Auto-Hébergée</p>
+        </div>
+      </div>
+
+      <!-- Menu Onglets SPA -->
+      <nav class="flex items-center gap-1.5 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
+        <button
+          type="button"
+          data-tab="home"
+          class="nav-tab px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition duration-150 cursor-pointer bg-amber-500 text-slate-950 shadow"
+        >
+          <span>🚪</span>
+          <span>Accueil</span>
+        </button>
+
+        <button
+          type="button"
+          data-tab="create-char"
+          id="nav-tab-forge"
+          class="nav-tab unjoined-hidden hidden px-3.5 py-1.5 rounded-lg text-xs font-semibold items-center gap-2 transition duration-150 cursor-pointer text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+        >
+          <span>📜</span>
+          <span>Forger Héros</span>
+        </button>
+
+        <button
+          type="button"
+          data-tab="team"
+          class="nav-tab unjoined-hidden hidden px-3.5 py-1.5 rounded-lg text-xs font-semibold items-center gap-2 transition duration-150 cursor-pointer text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+        >
+          <span>🛡️</span>
+          <span>Équipe</span>
+        </button>
+
+        <button
+          type="button"
+          data-tab="tavern"
+          class="nav-tab unjoined-hidden hidden px-3.5 py-1.5 rounded-lg text-xs font-semibold items-center gap-2 transition duration-150 cursor-pointer text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+        >
+          <span>🎲</span>
+          <span>Taverne</span>
+        </button>
+
+        <button
+          type="button"
+          data-tab="map"
+          class="nav-tab unjoined-hidden hidden px-3.5 py-1.5 rounded-lg text-xs font-semibold items-center gap-2 transition duration-150 cursor-pointer text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+        >
+          <span>🗺️</span>
+          <span>Carte Tactique</span>
+        </button>
+      </nav>
+
+      <!-- Salle & Statut Réseau -->
+      <div class="flex items-center gap-3">
+        <div class="hidden md:flex items-center gap-2 text-xs bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700">
+          <span class="text-slate-400">Salle :</span>
+          <span id="current-room" class="font-semibold text-amber-400">Aucune</span>
+        </div>
+
+        <div id="status-indicator" class="flex items-center gap-2 text-xs font-semibold px-3 py-1 rounded-full bg-slate-800 text-slate-400 border border-slate-700 shadow-sm transition">
+          <span id="status-dot" class="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"></span>
+          <span id="status-text">Connexion...</span>
+        </div>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ======================================================== -->
+  <!-- 2. CONTENEUR PRINCIPAL DES VUES SPA                      -->
+  <!-- ======================================================== -->
+  <main class="max-w-7xl mx-auto w-full flex-1 p-4 sm:p-6 flex flex-col">
+
+    <!-- ---------------------------------------------------- -->
+    <!-- VUE 0 : ACCUEIL / CRÉATION OU CONNEXION À UNE SALLE  -->
+    <!-- ---------------------------------------------------- -->
+    <section id="view-home" class="spa-view flex-1 flex flex-col items-center justify-center p-2">
+      <div class="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 sm:p-8 space-y-6">
+        
+        <!-- En-tête -->
+        <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+          <div class="flex items-center gap-3">
+            <span class="text-3xl">⚔️</span>
+            <div>
+              <h2 class="text-xl font-bold tracking-tight text-amber-400">Créer ou Rejoindre une Table</h2>
+              <p class="text-xs text-slate-400">Portail de connexion (4 Joueurs + 1 MJ)</p>
+            </div>
+          </div>
+          <span class="text-xs px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-mono">
+            VTT Hub
+          </span>
+        </div>
+
+        <!-- Formulaire de connexion salle -->
+        <form id="join-form" class="space-y-4">
+          <div>
+            <label for="roomId" class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">
+              Nom / Identifiant de la salle
+            </label>
+            <input
+              type="text"
+              id="roomId"
+              name="roomId"
+              value="table-ronde"
+              required
+              placeholder="ex: table-ronde"
+              class="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition"
+            />
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label for="username" class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">
+                Pseudo
+              </label>
+              <input
+                type="text"
+                id="username"
+                name="username"
+                required
+                placeholder="ex: Gandalf"
+                class="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition"
+              />
+            </div>
+
+            <div>
+              <label for="role" class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">
+                Rôle
+              </label>
+              <select
+                id="role"
+                name="role"
+                class="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition"
+              >
+                <option value="mj">👑 Créer en tant que MJ</option>
+                <option value="player">🛡️ Rejoindre en tant que Joueur</option>
+              </select>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            id="btn-join"
+            class="w-full py-3 px-4 bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-slate-950 font-bold rounded-xl shadow-lg transition duration-150 cursor-pointer"
+          >
+            Entrer sur la table de jeu
+          </button>
+        </form>
+
+        <!-- Console réseau de la salle -->
+        <div class="space-y-1.5 pt-2 border-t border-slate-800">
+          <div class="flex items-center justify-between text-[11px] text-slate-400 font-medium">
+            <span>Journal de connexion</span>
+            <button id="btn-clear-lobby" type="button" class="underline hover:text-slate-200">Effacer</button>
+          </div>
+          <div
+            id="lobby-console"
+            class="h-28 overflow-y-auto bg-slate-950 border border-slate-800 rounded-lg p-2.5 font-mono text-[11px] text-emerald-400 space-y-1"
+          >
+            <p class="text-slate-500">[Prêt à créer ou rejoindre une table...]</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ---------------------------------------------------- -->
+    <!-- VUE CRÉATION DE PERSONNAGE (VIBE MEDIEVAL RPG)      -->
+    <!-- ---------------------------------------------------- -->
+    <section id="view-create-char" class="spa-view hidden flex-1 flex flex-col max-w-7xl mx-auto w-full space-y-6">
+      
+      <!-- Bannière Héroïque -->
+      <div class="stone-card border-4 border-double border-amber-800/60 p-6 text-center relative overflow-hidden">
+        <div class="absolute -top-10 -left-10 text-8xl opacity-10 pointer-events-none select-none">⚔️</div>
+        <div class="absolute -bottom-10 -right-10 text-8xl opacity-10 pointer-events-none select-none">🛡️</div>
+        <p class="font-medieval text-xs sm:text-sm text-amber-500 uppercase tracking-widest mb-1">Grimoire des Âmes & Registre d'Aventure</p>
+        <h2 class="font-cinzel text-2xl sm:text-3xl font-black text-amber-300 uppercase tracking-wider text-shadow">
+          ⚜️ La Forge du Destin ⚜️
+        </h2>
+        <p class="font-crimson text-sm sm:text-base text-stone-300 italic max-w-2xl mx-auto mt-2 leading-relaxed">
+          « Nul n'entre dans les légendes sans avoir gravé son nom dans la roche. Choisissez votre ascendance et embrassez votre vocation. »
+        </p>
+      </div>
+
+      <!-- Formulaire Principal de Création (Grille 2 Colonnes : Choix + Parchemin) -->
+      <form id="char-create-form" class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        <!-- Colonne Gauche : Options de Personnalisation (8/12) -->
+        <div class="lg:col-span-7 xl:col-span-8 space-y-6">
+          
+          <!-- Étape 1 : Nom du Héros -->
+          <div class="stone-card border-2 border-amber-900/50 p-5 space-y-3">
+            <div class="flex items-center justify-between border-b border-amber-950/60 pb-2">
+              <div class="flex items-center gap-2">
+                <span class="text-xl">🖋️</span>
+                <label for="char-name-input" class="font-cinzel text-sm font-bold uppercase tracking-wider text-amber-300">
+                  <span id="char-name-step-number">1.</span> Écrou & Nom du Héros
+                </label>
+              </div>
+              <span id="rename-only-badge" class="hidden text-[10px] font-mono uppercase font-bold px-2 py-0.5 bg-amber-950/90 border border-amber-500/70 text-amber-300">
+                Mode Renommer
+              </span>
+            </div>
+            <p class="font-crimson text-xs text-stone-400 italic" id="char-name-desc">
+              Le nom sous lequel les bardes chanteront vos hauts faits ou votre trépas.
+            </p>
+            <div class="relative">
+              <input
+                type="text"
+                id="char-name-input"
+                name="charName"
+                required
+                maxlength="30"
+                placeholder="ex: Valérian Brise-Fer, Dame Morwenna..."
+                class="w-full px-4 py-3 bg-stone-950 border-2 border-stone-700/80 rounded-none text-stone-100 placeholder-stone-600 font-cinzel font-semibold text-sm focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 shadow-inner transition"
+              />
+            </div>
+            <!-- Message informatif en mode renommage -->
+            <p id="rename-notice-box" class="hidden text-xs font-crimson text-amber-300/90 italic bg-amber-950/40 border border-amber-900/50 p-2.5">
+              ⚜️ Votre personnage est déjà forgé. Vous pouvez modifier votre nom ici : vos anciens messages dans la taverne seront également mis à jour avec votre nouvelle identité.
+            </p>
+          </div>
+
+          <!-- Conteneur des étapes 2 à 6 : Masqué lorsque le personnage est déjà forgé (Mode Renommer seul) -->
+          <div id="full-forge-steps" class="space-y-6">
+
+            <!-- Étape 2 : Lignée & Race (10 Choix) -->
+            <div class="stone-card border-2 border-amber-900/50 p-5 space-y-3">
+              <div class="flex items-center justify-between border-b border-amber-950/60 pb-2">
+                <div class="flex items-center gap-2">
+                  <span class="text-xl">🩸</span>
+                  <span class="font-cinzel text-sm font-bold uppercase tracking-wider text-amber-300">
+                    2. Lignée & Origine Sanglante (10 Races)
+                  </span>
+                </div>
+                <span class="font-crimson italic text-xs text-amber-400/80" id="selected-race-label">Humain</span>
+              </div>
+              <p class="font-crimson text-xs text-stone-400 italic">
+                Chaque ascendance modifie votre endurance et votre affinité arcanique.
+              </p>
+
+              <div class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2.5" id="races-container">
+                <!-- Injecté dynamiquement par app.js ou pré-généré -->
+              </div>
+            </div>
+
+            <!-- Étape 3 : Vocation & Classe (6 Choix) -->
+            <div class="stone-card border-2 border-amber-900/50 p-5 space-y-3">
+              <div class="flex items-center justify-between border-b border-amber-950/60 pb-2">
+                <div class="flex items-center gap-2">
+                  <span class="text-xl">⚔️</span>
+                  <span class="font-cinzel text-sm font-bold uppercase tracking-wider text-amber-300">
+                    3. Vocation & Discipline (6 Classes)
+                  </span>
+                </div>
+                <span class="font-crimson italic text-xs text-amber-400/80" id="selected-class-label">Guerrier</span>
+              </div>
+              <p class="font-crimson text-xs text-stone-400 italic">
+                Votre discipline martiale ou mystique détermine votre rôle tactique en jeu.
+              </p>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3" id="classes-container">
+                <!-- Injecté dynamiquement par app.js ou pré-généré -->
+              </div>
+            </div>
+
+            <!-- Étape 4 : Les Attributs Primordiaux (Point Buy ou 3d6) -->
+            <div class="stone-card border-2 border-amber-900/50 p-5 space-y-4">
+              <div class="flex flex-wrap items-center justify-between border-b border-amber-950/60 pb-2.5 gap-2">
+                <div class="flex items-center gap-2">
+                  <span class="text-xl">⚖️</span>
+                  <span class="font-cinzel text-sm font-bold uppercase tracking-wider text-amber-300">
+                    4. Attributs Primordiaux (FOR, DEX, INT, CHA)
+                  </span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span id="attr-mode-badge" class="text-[10px] uppercase font-bold font-mono px-2 py-0.5 bg-amber-950/70 border border-amber-800/60 text-amber-300">
+                    Mode Point Buy
+                  </span>
+                </div>
+              </div>
+
+              <!-- Barre de Contrôle des Méthodes (Option A vs Option B) -->
+              <div class="bg-stone-950/70 p-3 border border-amber-950 flex flex-wrap items-center justify-between gap-3">
+                <!-- Compteur de points restants -->
+                <div id="point-buy-counter-box" class="flex items-center gap-2">
+                  <span class="font-crimson text-xs text-stone-300 italic">Répartition (Base 8, Max 15) :</span>
+                  <div class="font-mono text-xs px-2.5 py-1 bg-stone-900 border border-amber-900/60 text-amber-300 flex items-center gap-1.5">
+                    <span>Points restants :</span>
+                    <span id="attr-points-left" class="font-black text-amber-400 text-sm">20</span>
+                    <span class="text-stone-500">/ 20</span>
+                    <span id="attr-points-status" class="text-[10px] hidden text-emerald-400 font-bold ml-1">✓ Tous dépensés</span>
+                  </div>
+                </div>
+
+                <!-- Boutons de Mode : Tirage Aléatoire ou Revenir à Point Buy -->
+                <div class="flex items-center gap-2">
+                  <button
+                    type="button"
+                    id="btn-roll-stats"
+                    title="Répartir aléatoirement l'intégralité des 20 points sur les 4 attributs"
+                    class="px-3.5 py-1.5 bg-gradient-to-r from-amber-700 to-amber-900 hover:from-amber-600 hover:to-amber-800 text-amber-100 font-cinzel text-xs font-bold uppercase tracking-wider border border-amber-500/70 shadow-md transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  >
+                    <span>🎲</span>
+                    <span>Tirage Aléatoire</span>
+                  </button>
+                  <button
+                    type="button"
+                    id="btn-reset-point-buy"
+                    title="Revenir à la répartition manuelle des 20 points"
+                    class="px-3 py-1.5 bg-stone-900 hover:bg-stone-800 text-stone-300 hover:text-amber-200 font-cinzel text-xs border border-stone-700 transition flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>⚖️</span>
+                    <span>Point Buy</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Grille des 4 Attributs -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="attributes-grid">
+                
+                <!-- Force -->
+                <div class="bg-stone-950 border border-stone-800 p-3.5 flex items-center justify-between">
+                  <div class="flex items-center gap-2.5">
+                    <span class="text-2xl">💪</span>
+                    <div>
+                      <h4 class="font-cinzel text-xs font-bold text-red-300 uppercase tracking-wider">Force (FOR)</h4>
+                      <p class="font-crimson text-[11px] text-stone-400 italic">Puissance physique & mêlée</p>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <button type="button" data-stat="force" data-action="minus" class="attr-btn-minus w-7 h-7 bg-stone-900 hover:bg-stone-800 active:bg-stone-700 text-amber-400 font-mono font-bold text-base border border-stone-700 flex items-center justify-center cursor-pointer transition disabled:opacity-30 disabled:cursor-not-allowed">−</button>
+                    <span id="attr-val-force" class="w-8 text-center font-cinzel font-black text-lg text-amber-300">8</span>
+                    <button type="button" data-stat="force" data-action="plus" class="attr-btn-plus w-7 h-7 bg-stone-900 hover:bg-stone-800 active:bg-stone-700 text-amber-400 font-mono font-bold text-base border border-stone-700 flex items-center justify-center cursor-pointer transition disabled:opacity-30 disabled:cursor-not-allowed">+</button>
+                  </div>
+                </div>
+
+                <!-- Dextérité -->
+                <div class="bg-stone-950 border border-stone-800 p-3.5 flex items-center justify-between">
+                  <div class="flex items-center gap-2.5">
+                    <span class="text-2xl">🏹</span>
+                    <div>
+                      <h4 class="font-cinzel text-xs font-bold text-emerald-300 uppercase tracking-wider">Dextérité (DEX)</h4>
+                      <p class="font-crimson text-[11px] text-stone-400 italic">Agilité, réflexes & esquive</p>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <button type="button" data-stat="dexterite" data-action="minus" class="attr-btn-minus w-7 h-7 bg-stone-900 hover:bg-stone-800 active:bg-stone-700 text-amber-400 font-mono font-bold text-base border border-stone-700 flex items-center justify-center cursor-pointer transition disabled:opacity-30 disabled:cursor-not-allowed">−</button>
+                    <span id="attr-val-dexterite" class="w-8 text-center font-cinzel font-black text-lg text-amber-300">8</span>
+                    <button type="button" data-stat="dexterite" data-action="plus" class="attr-btn-plus w-7 h-7 bg-stone-900 hover:bg-stone-800 active:bg-stone-700 text-amber-400 font-mono font-bold text-base border border-stone-700 flex items-center justify-center cursor-pointer transition disabled:opacity-30 disabled:cursor-not-allowed">+</button>
+                  </div>
+                </div>
+
+                <!-- Intelligence -->
+                <div class="bg-stone-950 border border-stone-800 p-3.5 flex items-center justify-between">
+                  <div class="flex items-center gap-2.5">
+                    <span class="text-2xl">🧠</span>
+                    <div>
+                      <h4 class="font-cinzel text-xs font-bold text-sky-300 uppercase tracking-wider">Intelligence (INT)</h4>
+                      <p class="font-crimson text-[11px] text-stone-400 italic">Savoir, mémoire & arcanes</p>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <button type="button" data-stat="intelligence" data-action="minus" class="attr-btn-minus w-7 h-7 bg-stone-900 hover:bg-stone-800 active:bg-stone-700 text-amber-400 font-mono font-bold text-base border border-stone-700 flex items-center justify-center cursor-pointer transition disabled:opacity-30 disabled:cursor-not-allowed">−</button>
+                    <span id="attr-val-intelligence" class="w-8 text-center font-cinzel font-black text-lg text-amber-300">8</span>
+                    <button type="button" data-stat="intelligence" data-action="plus" class="attr-btn-plus w-7 h-7 bg-stone-900 hover:bg-stone-800 active:bg-stone-700 text-amber-400 font-mono font-bold text-base border border-stone-700 flex items-center justify-center cursor-pointer transition disabled:opacity-30 disabled:cursor-not-allowed">+</button>
+                  </div>
+                </div>
+
+                <!-- Charisme -->
+                <div class="bg-stone-950 border border-stone-800 p-3.5 flex items-center justify-between">
+                  <div class="flex items-center gap-2.5">
+                    <span class="text-2xl">👑</span>
+                    <div>
+                      <h4 class="font-cinzel text-xs font-bold text-purple-300 uppercase tracking-wider">Charisme (CHA)</h4>
+                      <p class="font-crimson text-[11px] text-stone-400 italic">Présence, volonté & éloquence</p>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <button type="button" data-stat="charisme" data-action="minus" class="attr-btn-minus w-7 h-7 bg-stone-900 hover:bg-stone-800 active:bg-stone-700 text-amber-400 font-mono font-bold text-base border border-stone-700 flex items-center justify-center cursor-pointer transition disabled:opacity-30 disabled:cursor-not-allowed">−</button>
+                    <span id="attr-val-charisme" class="w-8 text-center font-cinzel font-black text-lg text-amber-300">8</span>
+                    <button type="button" data-stat="charisme" data-action="plus" class="attr-btn-plus w-7 h-7 bg-stone-900 hover:bg-stone-800 active:bg-stone-700 text-amber-400 font-mono font-bold text-base border border-stone-700 flex items-center justify-center cursor-pointer transition disabled:opacity-30 disabled:cursor-not-allowed">+</button>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- Étape 5 : L'Historique (Système de Titre d'Origine) -->
+            <div class="stone-card border-2 border-amber-900/50 p-5 space-y-4">
+              <div class="flex items-center justify-between border-b border-amber-950/60 pb-2">
+                <div class="flex items-center gap-2">
+                  <span class="text-xl">📜</span>
+                  <span class="font-cinzel text-sm font-bold uppercase tracking-wider text-amber-300">
+                    5. Historique & Origine (Système de Titre)
+                  </span>
+                </div>
+                <span class="font-crimson italic text-xs text-stone-400">Le titre qui précède vos pas</span>
+              </div>
+              <p class="font-crimson text-xs text-stone-400 italic">
+                Associez votre statut d'origine à un concept pour forger le titre légendaire sous lequel le monde vous reconnaîtra.
+              </p>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <!-- Liste 1 : Statut -->
+                <div>
+                  <label for="select-origin-status" class="block text-xs font-cinzel font-bold uppercase tracking-wider text-amber-200 mb-1.5">
+                    1. Statut Social / Passé
+                  </label>
+                  <select
+                    id="select-origin-status"
+                    class="w-full px-3.5 py-2.5 bg-stone-950 border-2 border-stone-700/80 rounded-none text-xs font-cinzel font-semibold text-stone-100 focus:outline-none focus:border-amber-500 transition cursor-pointer"
+                  >
+                    <option value="Réfugié">Réfugié</option>
+                    <option value="Héritier déchu">Héritier déchu</option>
+                    <option value="Mercenaire vétéran">Mercenaire vétéran</option>
+                    <option value="Chercheur exilé">Chercheur exilé</option>
+                    <option value="Survivant">Survivant</option>
+                    <option value="Chevalier renégat">Chevalier renégat</option>
+                    <option value="Prisonnier">Prisonnier</option>
+                    <option value="Gardien">Gardien</option>
+                    <option value="Prophète">Prophète</option>
+                    <option value="Orphelin">Orphelin</option>
+                    <option value="Vagabond">Vagabond</option>
+                    <option value="Héraut">Héraut</option>
+                    <option value="Émissaire">Émissaire</option>
+                    <option value="Témoin">Témoin</option>
+                    <option value="Fantôme">Fantôme</option>
+                    <option value="Fossoyeur">Fossoyeur</option>
+                    <option value="Fléau">Fléau</option>
+                    <option value="Architecte">Architecte</option>
+                    <option value="Martyr">Martyr</option>
+                    <option value="Traître">Traître</option>
+                    <option value="Enfant">Enfant</option>
+                    <option value="Exécuteur">Exécuteur</option>
+                    <option value="Poète">Poète</option>
+                  </select>
+                </div>
+
+                <!-- Liste 2 : Concept -->
+                <div>
+                  <label for="select-origin-concept" class="block text-xs font-cinzel font-bold uppercase tracking-wider text-amber-200 mb-1.5">
+                    2. Allégeance / Concept
+                  </label>
+                  <select
+                    id="select-origin-concept"
+                    class="w-full px-3.5 py-2.5 bg-stone-950 border-2 border-stone-700/80 rounded-none text-xs font-cinzel font-semibold text-stone-100 focus:outline-none focus:border-amber-500 transition cursor-pointer"
+                  >
+                    <option value="de la vie">de la vie</option>
+                    <option value="de la mer">de la mer</option>
+                    <option value="de l'oubli">de l'oubli</option>
+                    <option value="du temps">du temps</option>
+                    <option value="de la folie">de la folie</option>
+                    <option value="de la nuit éternelle">de la nuit éternelle</option>
+                    <option value="de l'illusion">de l'illusion</option>
+                    <option value="de la foudre">de la foudre</option>
+                    <option value="du vide">du vide</option>
+                    <option value="de la vérité">de la vérité</option>
+                    <option value="des cendres" selected>des cendres</option>
+                    <option value="du chaos">du chaos</option>
+                    <option value="du silence">du silence</option>
+                    <option value="des étoiles mortes">des étoiles mortes</option>
+                    <option value="de l'aube brisée">de l'aube brisée</option>
+                    <option value="des abysses">des abysses</option>
+                    <option value="de la flamme noire">de la flamme noire</option>
+                    <option value="des murmures">des murmures</option>
+                    <option value="du crépuscule">du crépuscule</option>
+                    <option value="du désespoir">du désespoir</option>
+                    <option value="de l'hiver sans fin">de l'hiver sans fin</option>
+                    <option value="de la lumière aveuglante">de la lumière aveuglante</option>
+                    <option value="des vents amers">des vents amers</option>
+                    <option value="de l'espoir perdu">de l'espoir perdu</option>
+                    <option value="des cauchemars">des cauchemars</option>
+                    <option value="de la malédiction">de la malédiction</option>
+                    <option value="du sang ancien">du sang ancien</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Synthèse du Titre -->
+              <div class="bg-stone-950/80 border border-amber-950 p-3 flex items-center justify-between">
+                <span class="font-crimson italic text-xs text-stone-400">Titre forgé pour votre héros :</span>
+                <span id="title-preview-tag" class="font-cinzel font-black text-amber-300 text-sm tracking-wide">
+                  Réfugié des cendres
+                </span>
+              </div>
+            </div>
+
+            <!-- Étape 6 : Couleur Distinctive du Héros (Jeton, Fiche, Taverne) -->
+            <div class="stone-card border-2 border-amber-900/50 p-5 space-y-3">
+              <div class="flex items-center justify-between border-b border-amber-950/60 pb-2">
+                <div class="flex items-center gap-2">
+                  <span class="text-xl">🎨</span>
+                  <span class="font-cinzel text-sm font-bold uppercase tracking-wider text-amber-300">
+                    6. Couleur & Sceau Héroïque
+                  </span>
+                </div>
+                <span class="font-crimson italic text-xs text-amber-400/80" id="selected-color-label">Cramoisi Sanglant</span>
+              </div>
+              <p class="font-crimson text-xs text-stone-400 italic">
+                Cette couleur forgera votre identité : bordure de votre carte, teinte de votre nom dans la taverne et couleur de votre futur jeton de jeu.
+                <span class="text-amber-400/90 font-semibold block mt-0.5">⚠️ La couleur Dorée / Jaune est exclusivement réservée au Maître du Jeu 👑.</span>
+              </p>
+
+              <!-- Grille de sélection des couleurs (Le Jaune est interdit aux joueurs) -->
+              <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2.5 pt-1" id="char-colors-grid">
+                <!-- Injecté dynamiquement par app.js -->
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- Colonne Droite : Le Parchemin Sacré de Prévisualisation (4/12) -->
+        <div class="lg:col-span-5 xl:col-span-4 sticky top-20">
+          <div id="parchment-sheet-card" class="parchment-sheet border-4 border-double border-[#7c3f1d] p-6 space-y-4 transition-all duration-300">
+            
+            <!-- En-tête Parchemin façon parchemin D&D / Baldur's Gate -->
+            <div class="text-center border-b-2 border-amber-950/30 pb-3">
+              <div class="flex items-center justify-center gap-2 mb-1">
+                <span class="text-xs font-cinzel uppercase tracking-widest text-amber-950/80 font-bold">
+                  📜 Feuille de Destin
+                </span>
+                <span id="parchment-color-dot" class="inline-block w-3 h-3 rounded-full border border-amber-950/40 shadow-sm" style="background-color: #ef4444;" title="Couleur de votre héros"></span>
+              </div>
+              <h3 id="parchment-name" class="font-medieval text-2xl font-black mt-1 break-words transition-colors" style="color: #991b1b;">
+                Aventurier Sans Nom
+              </h3>
+              <!-- Titre forgé en temps réel -->
+              <p id="parchment-title" class="font-cinzel font-bold text-xs text-amber-900 uppercase tracking-widest mt-0.5">
+                Réfugié des cendres
+              </p>
+              <p id="parchment-archetype" class="font-crimson italic font-bold text-sm text-red-950 mt-1">
+                Humain Guerrier
+              </p>
+              <div id="parchment-role" class="inline-block bg-amber-950/15 border border-amber-950/25 px-2.5 py-0.5 mt-1 rounded-sm text-[11px] font-cinzel font-semibold text-amber-950 uppercase tracking-wider">
+                Tank / Dégâts Physiques
+              </div>
+            </div>
+
+            <!-- Attributs Principaux sur le Parchemin (FOR, DEX, INT, CHA) -->
+            <div class="bg-amber-950/10 border-2 border-amber-900/40 p-3 rounded-none space-y-1.5">
+              <div class="flex items-center justify-between border-b border-amber-950/20 pb-1">
+                <span class="text-[10px] font-cinzel font-black uppercase tracking-wider text-amber-950 flex items-center gap-1">
+                  <span>⚖️</span> Attributs Principaux
+                </span>
+                <span id="parchment-attr-mode-text" class="text-[10px] font-mono text-amber-950/70 italic">Point Buy (20 pts)</span>
+              </div>
+              <div class="grid grid-cols-4 gap-2 text-center">
+                <div class="bg-amber-950/10 border border-amber-950/20 p-1.5">
+                  <div class="text-[9px] font-cinzel font-bold text-amber-950/80">FOR</div>
+                  <div id="parchment-stat-force" class="font-cinzel text-lg font-black text-red-950">8</div>
+                </div>
+                <div class="bg-amber-950/10 border border-amber-950/20 p-1.5">
+                  <div class="text-[9px] font-cinzel font-bold text-amber-950/80">DEX</div>
+                  <div id="parchment-stat-dexterite" class="font-cinzel text-lg font-black text-emerald-950">8</div>
+                </div>
+                <div class="bg-amber-950/10 border border-amber-950/20 p-1.5">
+                  <div class="text-[9px] font-cinzel font-bold text-amber-950/80">INT</div>
+                  <div id="parchment-stat-intelligence" class="font-cinzel text-lg font-black text-blue-950">8</div>
+                </div>
+                <div class="bg-amber-950/10 border border-amber-950/20 p-1.5">
+                  <div class="text-[9px] font-cinzel font-bold text-amber-950/80">CHA</div>
+                  <div id="parchment-stat-charisme" class="font-cinzel text-lg font-black text-purple-950">8</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Jauges et Statistiques Vitales du Parchemin -->
+            <div class="grid grid-cols-2 gap-3 py-1">
+              <!-- Points de Vie Max -->
+              <div class="bg-amber-950/10 border-2 border-red-950/30 p-3 text-center rounded-none shadow-inner">
+                <span class="text-[10px] font-cinzel uppercase font-black tracking-widest text-red-950 flex items-center justify-center gap-1">
+                  <span>❤️</span> PV Maximum
+                </span>
+                <div id="parchment-hp" class="font-cinzel text-3xl font-black text-red-950 my-0.5">
+                  30
+                </div>
+                <div id="parchment-hp-detail" class="font-crimson italic text-[11px] text-amber-950/80">
+                  Base 28 + Race +2
+                </div>
+              </div>
+
+              <!-- Énergie / Mana Max -->
+              <div class="bg-amber-950/10 border-2 border-blue-950/30 p-3 text-center rounded-none shadow-inner">
+                <span class="text-[10px] font-cinzel uppercase font-black tracking-widest text-blue-950 flex items-center justify-center gap-1">
+                  <span>⚡</span> Énergie Max
+                </span>
+                <div id="parchment-energy" class="font-cinzel text-3xl font-black text-blue-950 my-0.5">
+                  12
+                </div>
+                <div id="parchment-energy-detail" class="font-crimson italic text-[11px] text-amber-950/80">
+                  Base 10 + Race +2
+                </div>
+              </div>
+            </div>
+
+            <!-- Parchemin : Passif Harmonisé Combiné -->
+            <div class="bg-amber-950/10 border-2 border-amber-900/40 p-4 rounded-none space-y-2">
+              <div class="flex items-center gap-1.5 border-b border-amber-950/20 pb-1">
+                <span class="text-sm">⚜️</span>
+                <h4 class="font-cinzel text-xs font-black uppercase tracking-wider text-amber-950">
+                  Capacité & Effet Passif Unique
+                </h4>
+              </div>
+              <div id="parchment-passive-title" class="font-cinzel text-xs font-bold text-red-950">
+                Volonté Indomptable & Second Souffle
+              </div>
+              <p id="parchment-passive-desc" class="font-crimson text-xs text-amber-950 leading-relaxed italic">
+                Équilibré en toutes circonstances (+2 PV Max, +2 Énergie Max). Associé au savoir de la classe Guerrier : Second Souffle (Tenacité au corps-à-corps).
+              </p>
+            </div>
+
+            <!-- Parchemin : Dotation de la Classe (Paquetage de départ) -->
+            <div class="bg-amber-950/10 border-2 border-amber-900/40 p-4 rounded-none space-y-2">
+              <div class="flex items-center gap-1.5 border-b border-amber-950/20 pb-1">
+                <span class="text-sm">🎒</span>
+                <h4 class="font-cinzel text-xs font-black uppercase tracking-wider text-amber-950">
+                  Dotation de la Classe
+                </h4>
+              </div>
+              <ul id="parchment-starting-package" class="space-y-1.5 text-xs font-crimson text-amber-950">
+                <!-- Rempli dynamiquement en temps réel selon la classe choisie -->
+              </ul>
+            </div>
+
+            <!-- Notes d'immersion / Flavor text -->
+            <div class="text-[11px] font-crimson text-amber-950/70 italic border-t border-amber-950/20 pt-2 text-center">
+              « Le destin ne favorise que les âmes qui osent braver les abysses. »
+            </div>
+
+            <!-- Bouton Sceau de Cire ("Forger mon Destin") -->
+            <button
+              type="submit"
+              id="btn-forge-destiny"
+              class="wax-seal-btn w-full py-4 px-6 rounded-none text-amber-100 font-cinzel font-black uppercase tracking-widest text-sm sm:text-base flex items-center justify-center gap-3 cursor-pointer"
+            >
+              <span class="text-lg">⚔️</span>
+              <span>Forger mon Destin</span>
+              <span class="text-lg">⚜️</span>
+            </button>
+
+          </div>
+        </div>
+
+      </form>
+    </section>
+
+    <!-- ---------------------------------------------------- -->
+    <!-- VUE 1 : ÉQUIPE (FICHES DE PERSONNAGES - GRILLE 2x2)   -->
+    <!-- ---------------------------------------------------- -->
+    <section id="view-team" class="spa-view hidden flex-1 flex flex-col gap-4">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-800/60">
+        <div>
+          <h2 class="text-base font-bold uppercase tracking-wider text-slate-200">🛡️ Fiches d'Aventuriers</h2>
+          <p class="text-xs text-slate-400">Suivi en direct des Points de Vie et d'Énergie de l'équipe (4 slots).</p>
+        </div>
+        <span class="text-xs text-emerald-400/90 font-mono flex items-center gap-1.5 bg-emerald-950/40 border border-emerald-800/50 px-2.5 py-1 rounded-full">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          Synchro temps réel
+        </span>
+      </div>
+
+      <!-- Conteneur dynamique des personnages joueurs (apparaissent à la connexion, max 4) -->
+      <div id="characters-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
+        <!-- Message affiché quand aucun joueur n'a encore rejoint -->
+        <div id="no-players-message" class="col-span-full flex flex-col items-center justify-center p-12 bg-slate-900/60 border border-dashed border-slate-800 rounded-2xl text-center space-y-3">
+          <div class="w-14 h-14 rounded-2xl bg-slate-800/80 flex items-center justify-center text-3xl shadow-inner">
+            ⏳
+          </div>
+          <h3 class="font-bold text-slate-200 text-base">En attente de vos aventuriers...</h3>
+          <p class="text-xs text-slate-400 max-w-sm">
+            La salle est créée. Dès qu'un joueur rejoint la partie (jusqu'à 4 joueurs maximum), sa fiche de personnage sera automatiquement générée et affichée ici en temps réel.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------------------------------------------------- -->
+    <!-- VUE 2 : TAVERNE (SEPARÉE EN 2 : DÉS & MESSAGES)      -->
+    <!-- ---------------------------------------------------- -->
+    <section id="view-tavern" class="spa-view hidden flex-1 flex flex-col max-w-6xl mx-auto w-full">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-2xl flex flex-col h-[78vh]">
+        
+        <!-- En-tête de la Taverne -->
+        <div class="flex flex-wrap items-center justify-between border-b border-slate-800 pb-3 mb-3 gap-3">
+          <div class="flex items-center gap-3">
+            <span class="text-2xl">🍺</span>
+            <div>
+              <h2 class="font-bold text-slate-100 text-base">La Taverne & Journal d'Aventure</h2>
+              <p class="text-xs text-slate-400">Journal d'actions, historique des dés et salon de discussion.</p>
+            </div>
+          </div>
+
+          <!-- Contrôle MJ : Choix du destinataire / personnage ciblé par le dé -->
+          <div id="mj-target-container" class="flex items-center gap-2 bg-slate-950 px-3.5 py-1.5 rounded-xl border border-amber-500/40 shadow-inner">
+            <span class="text-sm">🎯</span>
+            <label for="dice-target-select" class="text-xs text-amber-400 font-bold whitespace-nowrap">Destiné à :</label>
+            <select
+              id="dice-target-select"
+              class="bg-slate-900 border border-slate-700 rounded-lg text-xs font-semibold text-slate-100 px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer"
+            >
+              <option value="all">🌐 Toute la table (Général)</option>
+              <option value="0">Slot 1 : Valeros (Guerrier)</option>
+              <option value="1">Slot 2 : Kyra (Prêtresse)</option>
+              <option value="2">Slot 3 : Merisiel (Voleuse)</option>
+              <option value="3">Slot 4 : Ezren (Magicien)</option>
+            </select>
+          </div>
+
+          <!-- Champ caché pour préserver l'expéditeur MJ -->
+          <input type="hidden" id="chat-sender" value="Maître du Jeu" />
+        </div>
+
+        <!-- ZONE CENTRALE : 2 COLONNES (HISTORIQUE DÉS à gauche & MESSAGES CHAT à droite) -->
+        <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 overflow-hidden mb-3">
+          
+          <!-- COLONNE 1 : HISTORIQUE DES DÉS -->
+          <div class="flex flex-col bg-slate-950/60 rounded-xl border border-slate-800/80 overflow-hidden shadow-inner">
+            <div class="flex items-center justify-between px-3.5 py-2 bg-slate-900/90 border-b border-slate-800">
+              <div class="flex items-center gap-2">
+                <span class="text-base">🎲</span>
+                <span class="text-xs font-bold uppercase tracking-wider text-amber-400">Historique des Dés</span>
+              </div>
+              <span class="text-[10px] text-slate-400 font-mono">Tirages MJ</span>
+            </div>
+            
+            <div
+              id="dice-history"
+              class="flex-1 overflow-y-auto space-y-2.5 p-3 font-sans text-xs scroll-smooth"
+            >
+              <div class="text-xs text-slate-500 italic text-center py-4">
+                Les tirages de dés effectués par le MJ apparaîtront ici.
+              </div>
+            </div>
+          </div>
+
+          <!-- COLONNE 2 : SALON DES MESSAGES (CHAT) -->
+          <div class="flex flex-col bg-slate-950/60 rounded-xl border border-slate-800/80 overflow-hidden shadow-inner">
+            <div class="flex items-center justify-between px-3.5 py-2 bg-slate-900/90 border-b border-slate-800">
+              <div class="flex items-center gap-2">
+                <span class="text-base">💬</span>
+                <span class="text-xs font-bold uppercase tracking-wider text-sky-400">Discussion & Roleplay</span>
+              </div>
+              <span class="text-[10px] text-slate-400 font-mono">Messages</span>
+            </div>
+            
+            <div
+              id="chat-history"
+              class="flex-1 overflow-y-auto space-y-2.5 p-3 font-sans text-xs scroll-smooth"
+            >
+              <div class="text-xs text-slate-500 italic text-center py-4">
+                Bienvenue dans la discussion. Échangez avec vos compagnons ou votre MJ.
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Rangée de Boutons Rapides de Dés (d4, d6, d8, d10, d12, d20, d100) - Réservée au MJ -->
+        <div id="mj-quick-dice-bar" class="flex items-center gap-2 mb-3 overflow-x-auto pb-1 text-slate-300">
+          <span class="text-[11px] uppercase font-bold text-slate-400 tracking-wider">Lancer :</span>
+          <button type="button" data-quick-dice="1d4" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 transition active:scale-95 cursor-pointer">d4</button>
+          <button type="button" data-quick-dice="1d6" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 transition active:scale-95 cursor-pointer">d6</button>
+          <button type="button" data-quick-dice="1d8" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 transition active:scale-95 cursor-pointer">d8</button>
+          <button type="button" data-quick-dice="1d10" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 transition active:scale-95 cursor-pointer">d10</button>
+          <button type="button" data-quick-dice="1d12" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 transition active:scale-95 cursor-pointer">d12</button>
+          <button type="button" data-quick-dice="1d20" class="px-4 py-1.5 text-xs font-bold rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/40 transition active:scale-95 shadow cursor-pointer">d20</button>
+          <button type="button" data-quick-dice="1d100" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition active:scale-95 cursor-pointer">d100</button>
+        </div>
+
+        <!-- Formulaire d'envoi -->
+        <form id="chat-form" class="flex gap-2">
+          <input
+            type="text"
+            id="chat-input"
+            autocomplete="off"
+            placeholder="Tapez un message ou /r 1d20+3..."
+            class="flex-1 px-4 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition"
+          />
+          <button
+            type="submit"
+            id="btn-chat-send"
+            class="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-slate-950 font-bold rounded-xl text-xs sm:text-sm transition shadow cursor-pointer whitespace-nowrap"
+          >
+            Envoyer
+          </button>
+        </form>
+
+      </div>
+    </section>
+
+    <!-- ---------------------------------------------------- -->
+    <!-- VUE 3 : CARTE TACTIQUE (FUTURE MAP)                  -->
+    <!-- ---------------------------------------------------- -->
+    <section id="view-map" class="spa-view hidden flex-1 flex flex-col">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl flex-1 flex flex-col items-center justify-center text-center relative overflow-hidden min-h-[500px]">
+        
+        <!-- Trame de grille tactique en arrière-plan -->
+        <div class="absolute inset-0 opacity-15 bg-[radial-gradient(#94a3b8_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none"></div>
+
+        <div class="relative z-10 flex flex-col items-center gap-3 max-w-md">
+          <div class="w-16 h-16 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-3xl shadow-inner">
+            🗺️
+          </div>
+          <h2 class="font-bold text-slate-100 text-lg">Carte Tactique & Battlemap</h2>
+          <p class="text-xs sm:text-sm text-slate-400">
+            Espace dédié à l'affichage de la carte de jeu : déplacement des pions des 4 joueurs et du MJ, grille de combat et gestion du brouillard de guerre.
+          </p>
+          <div class="flex items-center gap-2 mt-2">
+            <span class="text-xs font-semibold uppercase px-3 py-1 rounded-full bg-slate-800 text-amber-400 border border-slate-700">
+              Prochaine étape (Phase Carte)
+            </span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ======================================================== -->
+  <!-- MODALE MJ : ÉDITION COMPLÈTE DU PERSONNAGE               -->
+  <!-- ======================================================== -->
+  <div id="mj-edit-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-fadeIn">
+      
+      <!-- En-tête Modale -->
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2">
+          <span class="text-xl">👑</span>
+          <div>
+            <h3 class="font-bold text-slate-100 text-sm">Contrôle MJ : Fiche Personnage</h3>
+            <p class="text-[11px] text-amber-400/90 font-medium" id="modal-char-slot-label">Slot #0</p>
+          </div>
+        </div>
+        <button type="button" id="btn-close-modal" class="text-slate-400 hover:text-slate-200 text-xl font-bold cursor-pointer">✕</button>
+      </div>
+
+      <!-- Formulaire d'édition -->
+      <form id="mj-edit-form" class="space-y-4">
+        <input type="hidden" id="edit-slot" value="0">
+
+        <!-- Nom & Classe -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label for="edit-name" class="block text-[11px] font-semibold uppercase text-slate-400 mb-1">Nom</label>
+            <input type="text" id="edit-name" required class="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500">
+          </div>
+          <div>
+            <label for="edit-class" class="block text-[11px] font-semibold uppercase text-slate-400 mb-1">Classe</label>
+            <input type="text" id="edit-class" required class="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500">
+          </div>
+        </div>
+
+        <!-- PV actuels & PV Max -->
+        <div class="bg-slate-950/50 p-3 rounded-xl border border-rose-900/40 space-y-2">
+          <div class="text-xs font-bold text-rose-400 flex items-center gap-1.5">
+            <span>❤️</span>
+            <span>Gestion des Points de Vie</span>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label for="edit-hp" class="block text-[10px] uppercase font-semibold text-slate-400 mb-1">PV Actuels</label>
+              <input type="number" id="edit-hp" min="0" required class="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-rose-300 font-mono font-bold focus:outline-none focus:ring-2 focus:ring-rose-500">
+            </div>
+            <div>
+              <label for="edit-max-hp" class="block text-[10px] uppercase font-semibold text-slate-400 mb-1">PV Maximum</label>
+              <input type="number" id="edit-max-hp" min="1" required class="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-rose-300 font-mono font-bold focus:outline-none focus:ring-2 focus:ring-rose-500">
+            </div>
+          </div>
+        </div>
+
+        <!-- Énergie actuelle & Énergie Max -->
+        <div class="bg-slate-950/50 p-3 rounded-xl border border-sky-900/40 space-y-2">
+          <div class="text-xs font-bold text-sky-400 flex items-center gap-1.5">
+            <span>⚡</span>
+            <span>Gestion de l'Énergie / Mana</span>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label for="edit-energy" class="block text-[10px] uppercase font-semibold text-slate-400 mb-1">Énergie Actuelle</label>
+              <input type="number" id="edit-energy" min="0" required class="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-sky-300 font-mono font-bold focus:outline-none focus:ring-2 focus:ring-sky-500">
+            </div>
+            <div>
+              <label for="edit-max-energy" class="block text-[10px] uppercase font-semibold text-slate-400 mb-1">Énergie Maximum</label>
+              <input type="number" id="edit-max-energy" min="0" required class="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-sky-300 font-mono font-bold focus:outline-none focus:ring-2 focus:ring-sky-500">
+            </div>
+          </div>
+        </div>
+
+        <!-- Boutons d'action -->
+        <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+          <button type="button" id="btn-cancel-modal" class="px-4 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-slate-200 bg-slate-800 hover:bg-slate-700 transition cursor-pointer">
+            Annuler
+          </button>
+          <button type="submit" class="px-5 py-2 rounded-lg text-xs font-bold text-slate-950 bg-amber-500 hover:bg-amber-400 transition cursor-pointer shadow">
+            Enregistrer les modifications
+          </button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODALE : FORGER UN NOUVEL OBJET (INVENTAIRE - MJ)        -->
+  <!-- ======================================================== -->
+  <div id="modal-new-item" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm hidden">
+    <div class="relative w-full max-w-md bg-stone-900 border-2 border-amber-900 shadow-2xl p-6 text-stone-100 space-y-4">
+      
+      <!-- En-tête -->
+      <div class="flex items-center justify-between border-b border-amber-950 pb-3">
+        <div class="flex items-center gap-2.5">
+          <span class="text-2xl">🎒</span>
+          <div>
+            <h3 class="font-cinzel text-sm font-bold uppercase tracking-wider text-amber-300">✦ Forger un Nouvel Objet ✦</h3>
+            <p id="modal-item-slot-label" class="font-crimson italic text-xs text-stone-400">Ajout dans la besace du héros</p>
+          </div>
+        </div>
+        <button type="button" id="btn-close-new-item-modal" class="text-stone-400 hover:text-amber-200 text-xl font-bold cursor-pointer">✕</button>
+      </div>
+
+      <!-- Formulaire -->
+      <form id="form-new-item" class="space-y-3.5">
+        <input type="hidden" id="item-slot-input" value="0">
+
+        <!-- Nom de l'objet -->
+        <div>
+          <label for="item-name-input" class="block font-cinzel text-[11px] font-bold uppercase tracking-wider text-amber-300 mb-1">
+            Nom de l'Objet <span class="text-rose-400">*</span>
+          </label>
+          <input
+            type="text"
+            id="item-name-input"
+            required
+            placeholder="ex: Potion de soins majeurs, Cotte de mailles..."
+            class="w-full px-3 py-2 bg-stone-950 border border-amber-950 text-stone-100 placeholder-stone-600 text-xs font-crimson focus:outline-none focus:border-amber-600"
+          >
+        </div>
+
+        <!-- Description / Effets -->
+        <div>
+          <label for="item-desc-input" class="block font-cinzel text-[11px] font-bold uppercase tracking-wider text-amber-300 mb-1">
+            Description & Effets
+          </label>
+          <textarea
+            id="item-desc-input"
+            rows="2"
+            placeholder="Propriétés magiques, malédictions, détails..."
+            class="w-full px-3 py-2 bg-stone-950 border border-amber-950 text-stone-100 placeholder-stone-600 text-xs font-crimson focus:outline-none focus:border-amber-600 resize-none"
+          ></textarea>
+        </div>
+
+        <!-- Quantité -->
+        <div>
+          <label for="item-qty-input" class="block font-cinzel text-[11px] font-bold uppercase tracking-wider text-amber-300 mb-1">
+            Quantité Initiale
+          </label>
+          <input
+            type="number"
+            id="item-qty-input"
+            min="1"
+            value="1"
+            required
+            class="w-full px-3 py-1.5 bg-stone-950 border border-amber-950 text-amber-300 font-mono text-xs font-bold focus:outline-none focus:border-amber-600"
+          >
+        </div>
+
+        <!-- Zone Glisser-déposer ou cliquer pour l'image -->
+        <div>
+          <label class="block font-cinzel text-[11px] font-bold uppercase tracking-wider text-amber-300 mb-1">
+            Illustration de l'Objet (Redimensionné 400x400 WebP)
+          </label>
+          <input type="file" id="item-file-input" accept="image/*" class="hidden">
+          
+          <div
+            id="item-dropzone"
+            class="border-2 border-dashed border-amber-900/60 hover:border-amber-500/80 bg-stone-950/60 p-4 text-center cursor-pointer transition flex flex-col items-center justify-center gap-1.5"
+          >
+            <!-- Contenu par défaut du dropzone -->
+            <div id="dropzone-default-prompt" class="space-y-1">
+              <span class="text-3xl block">🖼️</span>
+              <p class="font-cinzel text-xs font-bold text-amber-300">
+                Glisser-déposer une image ou <span class="underline text-amber-400">cliquer</span>
+              </p>
+              <p class="font-crimson italic text-[11px] text-stone-500">
+                PNG, JPEG ou WEBP • Compression auto 400x400
+              </p>
+            </div>
+
+            <!-- Aperçu de l'image sélectionnée -->
+            <div id="dropzone-preview-container" class="hidden flex flex-col items-center gap-2">
+              <img id="item-preview-img" src="" alt="Aperçu objet" class="w-20 h-20 object-cover border-2 border-amber-700 shadow-md">
+              <span id="item-preview-name" class="font-mono text-[10px] text-stone-300 truncate max-w-[200px]"></span>
+              <button
+                type="button"
+                id="btn-remove-item-img"
+                class="text-[10px] text-rose-400 hover:text-rose-300 underline font-crimson cursor-pointer"
+              >
+                Retirer l'illustration
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Boutons d'action -->
+        <div class="flex items-center justify-end gap-2.5 pt-3 border-t border-amber-950/80">
+          <button
+            type="button"
+            id="btn-cancel-new-item"
+            class="px-3.5 py-1.5 text-xs font-cinzel text-stone-400 hover:text-stone-200 bg-stone-950 border border-stone-800 transition cursor-pointer"
+          >
+            Annuler
+          </button>
+          <button
+            type="submit"
+            id="btn-submit-new-item"
+            class="px-4 py-1.5 text-xs font-cinzel font-bold text-stone-950 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 border border-amber-400 transition cursor-pointer shadow flex items-center gap-1.5"
+          >
+            <span>✨</span>
+            <span id="btn-submit-item-text">Forger l'Objet</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- OVERLAY CINÉMATIQUE : LANCER DE DÉ DU MJ (SUSPENSE)       -->
+  <!-- ======================================================== -->
+  <div id="dice-suspense-overlay" class="fixed inset-0 z-50 pointer-events-none hidden flex items-center justify-center p-4">
+    <!-- Fond d'ambiance avec pulsation -->
+    <div id="dice-overlay-backdrop" class="absolute inset-0 bg-slate-950/80 backdrop-blur-md transition-opacity duration-300 opacity-0"></div>
+
+    <!-- Carte centrale d'animation -->
+    <div id="dice-overlay-card" class="relative z-10 max-w-lg w-full flex flex-col items-center text-center p-8 rounded-3xl transition-all duration-300 transform scale-75 opacity-0">
+      
+      <!-- Badge Expéditeur -->
+      <div id="dice-overlay-sender" class="text-xs uppercase font-bold tracking-widest px-3 py-1 rounded-full mb-3 shadow">
+        👑 Lancer de dé du Maître du Jeu
+      </div>
+
+      <!-- Icône de dé animé -->
+      <div id="dice-overlay-icon" class="text-7xl sm:text-8xl my-2 transition-transform duration-300">
+        🎲
+      </div>
+
+      <!-- Valeur du dé -->
+      <div id="dice-overlay-val" class="font-mono font-black text-6xl sm:text-7xl my-1 tracking-tight">
+        --
+      </div>
+
+      <!-- Verdict textuel animé -->
+      <div id="dice-overlay-verdict" class="text-2xl sm:text-3xl font-black uppercase tracking-wider my-2">
+        ...
+      </div>
+
+      <!-- Formule et sous-titre -->
+      <div id="dice-overlay-sub" class="text-xs font-mono opacity-80 mt-1">
+        Formule : d20
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Script Client VTT SPA -->
+  <script src="/js/app.js"></script>
+</body>
+</html>
