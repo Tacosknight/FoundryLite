@@ -80,12 +80,14 @@ function registerRoomHandlers(io, socket) {
 
       // Réponse directe au client via accusé de réception (callback)
       if (typeof callback === 'function') {
+        const mapState = roomManager.getMapState(cleanRoomId);
         callback({
           success: true,
           room,
           user,
           character: playerCharacter,
           characters,
+          map: mapState,
           isSaved: Boolean(roomObj?.isSaved)
         });
       }

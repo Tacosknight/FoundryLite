@@ -951,28 +951,224 @@
     <!-- ---------------------------------------------------- -->
     <!-- VUE 3 : CARTE TACTIQUE (FUTURE MAP)                  -->
     <!-- ---------------------------------------------------- -->
-    <section id="view-map" class="spa-view hidden flex-1 flex flex-col">
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl flex-1 flex flex-col items-center justify-center text-center relative overflow-hidden min-h-[500px]">
+    <!-- ---------------------------------------------------- -->
+    <!-- VUE 3 : CARTE TACTIQUE (BATTLEMAP AVEC CANVAS HTML5) -->
+    <!-- ---------------------------------------------------- -->
+    <section id="view-map" class="spa-view hidden flex-1 flex flex-col space-y-3">
+      
+      <!-- Barre d'outils supérieure de la carte -->
+      <div class="bg-stone-900 border-2 border-stone-800 rounded-xl p-2.5 sm:p-3 shadow-xl flex flex-wrap items-center justify-between gap-2.5">
         
-        <!-- Trame de grille tactique en arrière-plan -->
-        <div class="absolute inset-0 opacity-15 bg-[radial-gradient(#94a3b8_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none"></div>
+        <!-- Outils de Mode & Navigation -->
+        <div class="flex items-center flex-wrap gap-1.5">
+          <button
+            type="button"
+            id="map-tool-select"
+            data-map-tool="select"
+            class="map-tool-btn px-3 py-1.5 rounded-lg text-xs font-cinzel font-bold flex items-center gap-1.5 transition bg-amber-500 text-stone-950 shadow cursor-pointer"
+            title="Sélectionner et déplacer les pions"
+          >
+            <span>🖐️</span>
+            <span>Déplacer Pions</span>
+          </button>
 
-        <div class="relative z-10 flex flex-col items-center gap-3 max-w-md">
-          <div class="w-16 h-16 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-3xl shadow-inner">
-            🗺️
-          </div>
-          <h2 class="font-bold text-slate-100 text-lg">Carte Tactique & Battlemap</h2>
-          <p class="text-xs sm:text-sm text-slate-400">
-            Espace dédié à l'affichage de la carte de jeu : déplacement des pions des 4 joueurs et du MJ, grille de combat et gestion du brouillard de guerre.
-          </p>
-          <div class="flex items-center gap-2 mt-2">
-            <span class="text-xs font-semibold uppercase px-3 py-1 rounded-full bg-slate-800 text-amber-400 border border-slate-700">
-              Prochaine étape (Phase Carte)
-            </span>
+          <button
+            type="button"
+            id="map-tool-pan"
+            data-map-tool="pan"
+            class="map-tool-btn px-3 py-1.5 rounded-lg text-xs font-cinzel font-bold flex items-center gap-1.5 transition bg-stone-950 text-stone-300 hover:text-amber-200 border border-stone-800 cursor-pointer"
+            title="Naviguer sur la carte (pan)"
+          >
+            <span>✋</span>
+            <span>Vue Caméra</span>
+          </button>
+
+          <!-- Outils de Brouillard réservés au MJ -->
+          <div id="mj-fog-tools" class="hidden items-center gap-1.5 pl-2 border-l border-stone-800">
+            <span class="text-[10px] uppercase font-bold text-amber-400 font-mono hidden xl:inline">Brouillard :</span>
+            
+            <button
+              type="button"
+              id="map-tool-fog-rect"
+              data-map-tool="fog-rect"
+              class="map-tool-btn px-2.5 py-1.5 rounded-lg text-xs font-cinzel font-semibold flex items-center gap-1 transition bg-stone-950 text-stone-300 hover:text-amber-200 border border-stone-800 cursor-pointer"
+              title="Gommer le brouillard par rectangle"
+            >
+              <span>⬛</span>
+              <span>Révéler Rect</span>
+            </button>
+
+            <button
+              type="button"
+              id="map-tool-fog-circle"
+              data-map-tool="fog-circle"
+              class="map-tool-btn px-2.5 py-1.5 rounded-lg text-xs font-cinzel font-semibold flex items-center gap-1 transition bg-stone-950 text-stone-300 hover:text-amber-200 border border-stone-800 cursor-pointer"
+              title="Gommer le brouillard par cercle"
+            >
+              <span>⚪</span>
+              <span>Révéler Cercle</span>
+            </button>
+
+            <button
+              type="button"
+              id="btn-reset-fog"
+              class="px-2.5 py-1.5 rounded-lg text-xs font-cinzel font-semibold flex items-center gap-1 transition bg-stone-950 text-rose-300 hover:bg-rose-950/80 border border-rose-900/60 cursor-pointer"
+              title="Masquer à nouveau toute la carte sous le brouillard"
+            >
+              <span>🌫️</span>
+              <span>Reset Brouillard</span>
+            </button>
           </div>
         </div>
 
+        <!-- Contrôles Zoom & Grille -->
+        <div class="flex items-center flex-wrap gap-2">
+          <!-- Zoom -->
+          <div class="flex items-center bg-stone-950 border border-stone-800 rounded-lg overflow-hidden">
+            <button
+              type="button"
+              id="btn-map-zoom-out"
+              class="px-2.5 py-1 text-xs text-stone-300 hover:text-amber-300 hover:bg-stone-900 transition cursor-pointer"
+              title="Zoom arrière"
+            >
+              －
+            </button>
+            <span id="map-zoom-display" class="px-2 text-[11px] font-mono text-amber-400 font-bold min-w-[50px] text-center">
+              100%
+            </span>
+            <button
+              type="button"
+              id="btn-map-zoom-in"
+              class="px-2.5 py-1 text-xs text-stone-300 hover:text-amber-300 hover:bg-stone-900 transition cursor-pointer"
+              title="Zoom avant"
+            >
+              ＋
+            </button>
+            <button
+              type="button"
+              id="btn-map-center"
+              class="px-2.5 py-1 text-xs text-stone-400 hover:text-stone-200 border-l border-stone-800 hover:bg-stone-900 transition flex items-center gap-1 font-cinzel cursor-pointer"
+              title="Recentrer la caméra"
+            >
+              <span>🎯</span>
+              <span class="hidden sm:inline">Centrer</span>
+            </button>
+          </div>
+
+          <!-- Système de Tour de Jeu (Visible par tous les joueurs et MJ) -->
+          <div id="map-turn-banner" class="flex items-center gap-2 bg-stone-950 border border-amber-900/60 rounded-lg px-2.5 py-1.5 shadow">
+            <span class="text-xs">⚔️</span>
+            <div class="flex items-center gap-1.5 text-xs font-cinzel">
+              <span class="text-stone-400 text-[11px] hidden sm:inline">Tour :</span>
+              <span id="turn-active-name" class="font-bold text-amber-400 truncate max-w-[130px]">En attente</span>
+            </div>
+            <!-- Bouton Tour Suivant rapide (visible pour le MJ) -->
+            <button
+              type="button"
+              id="btn-next-turn"
+              class="hidden px-2 py-0.5 rounded bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-[11px] font-cinzel transition shadow cursor-pointer items-center gap-1 active:scale-95"
+              title="Passer au joueur suivant et lui envoyer une notification"
+            >
+              <span>🔔</span>
+              <span>Tour Suivant</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Panneau Action MJ (Pions Joueurs, Monstres, Choix de Tour & Fond de Carte) -->
+        <div id="mj-map-actions" class="hidden items-center flex-wrap gap-2">
+          <!-- Invoquer / Placer des pions joueurs -->
+          <button
+            type="button"
+            id="btn-open-player-tokens-modal"
+            class="px-3 py-1.5 rounded-lg text-xs font-cinzel font-bold flex items-center gap-1.5 transition bg-gradient-to-r from-blue-900 to-indigo-800 hover:from-blue-800 hover:to-indigo-700 text-white shadow border border-blue-500/50 cursor-pointer"
+            title="Invoquer ou repositionner un pion de joueur sur la carte"
+          >
+            <span>🧙</span>
+            <span>+ Pion Joueur</span>
+          </button>
+
+          <!-- Invoquer un monstre -->
+          <button
+            type="button"
+            id="btn-open-monster-modal"
+            class="px-3 py-1.5 rounded-lg text-xs font-cinzel font-bold flex items-center gap-1.5 transition bg-gradient-to-r from-red-800 to-rose-700 hover:from-red-700 hover:to-rose-600 text-white shadow border border-red-500/50 cursor-pointer"
+            title="Invoquer un monstre ou PNJ sur la carte"
+          >
+            <span>👹</span>
+            <span>+ Monstre</span>
+          </button>
+
+          <!-- Fond de Battlemap -->
+          <button
+            type="button"
+            id="btn-open-bg-modal"
+            class="px-3 py-1.5 rounded-lg text-xs font-cinzel font-bold flex items-center gap-1.5 transition bg-stone-950 hover:bg-stone-900 text-amber-300 border border-amber-800/80 shadow cursor-pointer"
+            title="Changer l'image de la Battlemap (upload ou URL)"
+          >
+            <span>🖼️</span>
+            <span>Fond Carte</span>
+          </button>
+        </div>
+
       </div>
+
+      <!-- Conteneur d'affichage de la Battlemap (Canvas natif) -->
+      <div class="relative w-full h-[74vh] min-h-[520px] bg-stone-950 border-2 border-stone-800 rounded-2xl overflow-hidden shadow-2xl select-none" id="map-canvas-container">
+        
+        <!-- Notification visuelle de Tour pour le Joueur concerné -->
+        <div id="turn-player-alert" class="absolute top-4 left-1/2 -translate-x-1/2 z-40 hidden flex items-center gap-3 bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 text-stone-950 px-6 py-2.5 rounded-2xl shadow-2xl border-2 border-amber-300 font-cinzel font-black tracking-wider text-sm animate-bounce cursor-pointer">
+          <span class="text-2xl animate-spin">⚔️</span>
+          <div>
+            <div class="text-[10px] uppercase tracking-widest text-stone-900 font-bold">Notification de Tour</div>
+            <div class="text-base font-extrabold text-stone-950">✦ C'EST VOTRE TOUR DE JOUER ! ✦</div>
+          </div>
+          <button type="button" id="btn-ack-turn" class="ml-2 px-3 py-1 bg-stone-950 text-amber-300 rounded-lg text-xs font-bold hover:bg-stone-900 border border-amber-400 transition cursor-pointer">
+            J'agis !
+          </button>
+        </div>
+
+        <canvas id="tactical-map-canvas" class="w-full h-full block cursor-grab"></canvas>
+
+        <!-- Tooltip d'information au survol d'un pion -->
+        <div id="map-token-tooltip" class="absolute pointer-events-none hidden z-30 bg-stone-950/95 border border-amber-500/70 rounded-lg p-2.5 shadow-2xl text-xs font-crimson min-w-[150px] transition-opacity duration-150 backdrop-blur-sm">
+          <div class="flex items-center gap-2 mb-1">
+            <span id="tooltip-token-icon" class="text-lg">🛡️</span>
+            <div>
+              <h4 id="tooltip-token-name" class="font-cinzel font-bold text-amber-300 text-xs leading-none">Nom</h4>
+              <span id="tooltip-token-type" class="text-[10px] text-stone-400 font-mono">Pion Joueur</span>
+            </div>
+          </div>
+          <div id="tooltip-token-hp-container" class="mt-1 pt-1 border-t border-amber-950/60 hidden">
+            <div class="flex justify-between text-[10px] font-mono mb-0.5">
+              <span class="text-rose-400">Points de Vie :</span>
+              <span id="tooltip-token-hp-val" class="font-bold text-stone-200">20 / 20</span>
+            </div>
+            <div class="w-full bg-stone-900 h-1.5 rounded-full overflow-hidden border border-stone-800">
+              <div id="tooltip-token-hp-bar" class="h-full bg-rose-600 transition-all duration-200" style="width: 100%;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mini-HUD d'aide et statut en bas à gauche -->
+        <div class="absolute bottom-3 left-3 pointer-events-none z-20 flex flex-col gap-1 text-[11px] font-mono text-stone-400/90 bg-stone-950/80 border border-stone-800/80 rounded-lg px-3 py-1.5 backdrop-blur-sm shadow">
+          <div class="flex items-center gap-2 text-stone-300">
+            <span id="hud-coordinates">X: 0 | Y: 0</span>
+            <span class="text-stone-600">•</span>
+            <span id="hud-fog-status" class="text-amber-400">Brouillard Actif</span>
+          </div>
+          <div class="text-[10px] text-stone-500 hidden md:block">
+            Clic Droit / Molette : Pan | Molette : Zoom | Glisser : Déplacer
+          </div>
+        </div>
+
+        <!-- Indicateur de mode Brouillard pour le MJ -->
+        <div id="hud-fog-drawing-notice" class="absolute top-3 left-1/2 -translate-x-1/2 pointer-events-none z-20 hidden px-4 py-1.5 bg-amber-950/90 border border-amber-500 rounded-full text-amber-200 font-cinzel text-xs font-bold shadow-lg animate-pulse">
+          ✦ Mode Révélation du Brouillard actif : Glissez pour gommer ✦
+        </div>
+
+      </div>
+
     </section>
 
   </main>
@@ -1181,6 +1377,265 @@
           </button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODALE : INVOQUER UN MONSTRE / PNJ SUR LA CARTE (MJ)     -->
+  <!-- ======================================================== -->
+  <div id="modal-add-monster" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm hidden">
+    <div class="relative w-full max-w-md bg-stone-900 border-2 border-red-900 shadow-2xl p-6 text-stone-100 space-y-4">
+      
+      <div class="flex items-center justify-between border-b border-red-950 pb-3">
+        <div class="flex items-center gap-2.5">
+          <span class="text-2xl">👹</span>
+          <div>
+            <h3 class="font-cinzel text-sm font-bold uppercase tracking-wider text-red-300">✦ Invoquer un Monstre ✦</h3>
+            <p class="font-crimson italic text-xs text-stone-400">Place un nouveau pion hostile ou neutre sur la carte</p>
+          </div>
+        </div>
+        <button type="button" id="btn-close-monster-modal" class="text-stone-400 hover:text-red-200 text-xl font-bold cursor-pointer">✕</button>
+      </div>
+
+      <form id="form-add-monster" class="space-y-3.5">
+        <!-- Nom du monstre -->
+        <div>
+          <label for="monster-name-input" class="block font-cinzel text-[11px] font-bold uppercase tracking-wider text-red-300 mb-1">
+            Nom de la Créature <span class="text-rose-400">*</span>
+          </label>
+          <input
+            type="text"
+            id="monster-name-input"
+            required
+            placeholder="ex: Gobelin Éclaireur, Chef Orque..."
+            class="w-full px-3 py-2 bg-stone-950 border border-red-950 text-stone-100 placeholder-stone-600 text-xs font-crimson focus:outline-none focus:border-red-600"
+          >
+        </div>
+
+        <!-- Icône / Emoji -->
+        <div>
+          <label class="block font-cinzel text-[11px] font-bold uppercase tracking-wider text-red-300 mb-1.5">
+            Icône / Symbole
+          </label>
+          <div class="flex items-center gap-1.5 flex-wrap mb-2" id="monster-icon-presets">
+            <button type="button" data-icon="👹" class="btn-preset-icon px-2 py-1 bg-stone-950 border border-stone-800 hover:border-red-500 text-lg transition selected">👹</button>
+            <button type="button" data-icon="💀" class="btn-preset-icon px-2 py-1 bg-stone-950 border border-stone-800 hover:border-red-500 text-lg transition">💀</button>
+            <button type="button" data-icon="🐺" class="btn-preset-icon px-2 py-1 bg-stone-950 border border-stone-800 hover:border-red-500 text-lg transition">🐺</button>
+            <button type="button" data-icon="🕷️" class="btn-preset-icon px-2 py-1 bg-stone-950 border border-stone-800 hover:border-red-500 text-lg transition">🕷️</button>
+            <button type="button" data-icon="🐉" class="btn-preset-icon px-2 py-1 bg-stone-950 border border-stone-800 hover:border-red-500 text-lg transition">🐉</button>
+            <button type="button" data-icon="🧟" class="btn-preset-icon px-2 py-1 bg-stone-950 border border-stone-800 hover:border-red-500 text-lg transition">🧟</button>
+            <button type="button" data-icon="🦇" class="btn-preset-icon px-2 py-1 bg-stone-950 border border-stone-800 hover:border-red-500 text-lg transition">🦇</button>
+            <button type="button" data-icon="🧌" class="btn-preset-icon px-2 py-1 bg-stone-950 border border-stone-800 hover:border-red-500 text-lg transition">🧌</button>
+            <button type="button" data-icon="👻" class="btn-preset-icon px-2 py-1 bg-stone-950 border border-stone-800 hover:border-red-500 text-lg transition">👻</button>
+          </div>
+          <input
+            type="text"
+            id="monster-icon-input"
+            value="👹"
+            maxlength="4"
+            class="w-20 px-2 py-1 bg-stone-950 border border-stone-800 text-stone-100 text-center text-sm font-mono focus:outline-none focus:border-red-500"
+          >
+        </div>
+
+        <!-- PV & PV Max -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label for="monster-hp-input" class="block font-cinzel text-[11px] font-bold uppercase tracking-wider text-rose-400 mb-1">
+              PV Actuels
+            </label>
+            <input
+              type="number"
+              id="monster-hp-input"
+              min="1"
+              value="15"
+              required
+              class="w-full px-3 py-1.5 bg-stone-950 border border-red-950 text-rose-300 font-mono text-xs font-bold focus:outline-none focus:border-red-500"
+            >
+          </div>
+          <div>
+            <label for="monster-max-hp-input" class="block font-cinzel text-[11px] font-bold uppercase tracking-wider text-rose-400 mb-1">
+              PV Maximum
+            </label>
+            <input
+              type="number"
+              id="monster-max-hp-input"
+              min="1"
+              value="15"
+              required
+              class="w-full px-3 py-1.5 bg-stone-950 border border-red-950 text-rose-300 font-mono text-xs font-bold focus:outline-none focus:border-red-500"
+            >
+          </div>
+        </div>
+
+        <!-- Couleur du socle -->
+        <div>
+          <label class="block font-cinzel text-[11px] font-bold uppercase tracking-wider text-red-300 mb-1">
+            Couleur du Socle
+          </label>
+          <div class="flex items-center gap-2" id="monster-color-presets">
+            <button type="button" data-color="#dc2626" class="w-7 h-7 rounded-full bg-red-600 border-2 border-white ring-2 ring-red-500/50 cursor-pointer"></button>
+            <button type="button" data-color="#9333ea" class="w-7 h-7 rounded-full bg-purple-600 border-2 border-stone-800 cursor-pointer"></button>
+            <button type="button" data-color="#16a34a" class="w-7 h-7 rounded-full bg-green-600 border-2 border-stone-800 cursor-pointer"></button>
+            <button type="button" data-color="#ea580c" class="w-7 h-7 rounded-full bg-orange-600 border-2 border-stone-800 cursor-pointer"></button>
+            <button type="button" data-color="#475569" class="w-7 h-7 rounded-full bg-slate-600 border-2 border-stone-800 cursor-pointer"></button>
+          </div>
+          <input type="hidden" id="monster-color-input" value="#dc2626">
+        </div>
+
+        <!-- Boutons d'action -->
+        <div class="flex items-center justify-end gap-2 pt-3 border-t border-red-950">
+          <button
+            type="button"
+            id="btn-cancel-monster"
+            class="px-3.5 py-1.5 text-xs font-cinzel text-stone-400 hover:text-stone-200 bg-stone-950 border border-stone-800 transition cursor-pointer"
+          >
+            Annuler
+          </button>
+          <button
+            type="submit"
+            class="px-4 py-1.5 text-xs font-cinzel font-bold text-white bg-gradient-to-r from-red-800 to-rose-700 hover:from-red-700 hover:to-rose-600 border border-red-500/60 transition cursor-pointer shadow flex items-center gap-1.5"
+          >
+            <span>⚔️</span>
+            <span>Invoquer le Monstre</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODALE : CHANGER LE FOND DE CARTE BATTLEMAP (MJ)         -->
+  <!-- ======================================================== -->
+  <div id="modal-map-background" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm hidden">
+    <div class="relative w-full max-w-md bg-stone-900 border-2 border-amber-900 shadow-2xl p-6 text-stone-100 space-y-4">
+      
+      <div class="flex items-center justify-between border-b border-amber-950 pb-3">
+        <div class="flex items-center gap-2.5">
+          <span class="text-2xl">🖼️</span>
+          <div>
+            <h3 class="font-cinzel text-sm font-bold uppercase tracking-wider text-amber-300">✦ Fond de Battlemap ✦</h3>
+            <p class="font-crimson italic text-xs text-stone-400">Changez l'illustration du plateau de jeu</p>
+          </div>
+        </div>
+        <button type="button" id="btn-close-bg-modal" class="text-stone-400 hover:text-amber-200 text-xl font-bold cursor-pointer">✕</button>
+      </div>
+
+      <div class="space-y-4">
+        <!-- Option 1 : Upload de fichier image -->
+        <div class="space-y-1.5">
+          <label class="block font-cinzel text-[11px] font-bold uppercase tracking-wider text-amber-300">
+            Option A : Uploader une Image (JPG, PNG, WebP)
+          </label>
+          <input type="file" id="map-bg-file-input" accept="image/*" class="hidden">
+          <button
+            type="button"
+            id="btn-trigger-map-bg-file"
+            class="w-full py-3 px-4 bg-stone-950 hover:bg-stone-800 border-2 border-dashed border-amber-950 hover:border-amber-600 flex items-center justify-center gap-2 text-xs font-cinzel text-amber-200 transition cursor-pointer"
+          >
+            <span>📁</span>
+            <span id="label-map-bg-filename">Choisir un fichier image de map...</span>
+          </button>
+        </div>
+
+        <div class="flex items-center gap-2 text-stone-600 text-xs justify-center font-mono uppercase">
+          <span>— OU —</span>
+        </div>
+
+        <!-- Option 2 : URL d'image -->
+        <div class="space-y-1.5">
+          <label for="map-bg-url-input" class="block font-cinzel text-[11px] font-bold uppercase tracking-wider text-amber-300">
+            Option B : Saisir une URL Web
+          </label>
+          <input
+            type="url"
+            id="map-bg-url-input"
+            placeholder="https://exemple.com/donjon-battlemap.jpg"
+            class="w-full px-3 py-2 bg-stone-950 border border-amber-950 text-stone-100 placeholder-stone-600 text-xs font-mono focus:outline-none focus:border-amber-600"
+          >
+        </div>
+
+        <!-- Option 3 : Réinitialiser -->
+        <div class="pt-2 border-t border-stone-800 flex justify-between items-center">
+          <button
+            type="button"
+            id="btn-remove-map-bg"
+            class="text-xs text-rose-400 hover:text-rose-300 font-cinzel underline cursor-pointer"
+          >
+            Retirer le fond (grille neutre)
+          </button>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex items-center justify-end gap-2 pt-3 border-t border-amber-950">
+          <button
+            type="button"
+            id="btn-cancel-bg-modal"
+            class="px-3.5 py-1.5 text-xs font-cinzel text-stone-400 hover:text-stone-200 bg-stone-950 border border-stone-800 transition cursor-pointer"
+          >
+            Fermer
+          </button>
+          <button
+            type="button"
+            id="btn-apply-map-bg"
+            class="px-4 py-1.5 text-xs font-cinzel font-bold text-stone-950 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 border border-amber-400 transition cursor-pointer shadow flex items-center gap-1.5"
+          >
+            <span>✓</span>
+            <span>Appliquer le Fond</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODALE MJ : FAIRE SPAWN LES PIONS JOUEURS                -->
+  <!-- ======================================================== -->
+  <div id="modal-spawn-player-tokens" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm hidden">
+    <div class="relative w-full max-w-lg bg-stone-900 border-2 border-blue-900 shadow-2xl p-6 text-stone-100 space-y-4">
+      
+      <div class="flex items-center justify-between border-b border-blue-950 pb-3">
+        <div class="flex items-center gap-2.5">
+          <span class="text-2xl">🧙</span>
+          <div>
+            <h3 class="font-cinzel text-sm font-bold uppercase tracking-wider text-blue-300">✦ Invoquer les Pions Joueurs ✦</h3>
+            <p class="font-crimson italic text-xs text-stone-400">Placez ou téléportez les héros sur la carte tactique</p>
+          </div>
+        </div>
+        <button type="button" id="btn-close-player-tokens-modal" class="text-stone-400 hover:text-blue-200 text-xl font-bold cursor-pointer">✕</button>
+      </div>
+
+      <!-- Action groupée : Invoquer toute l'équipe -->
+      <div class="flex items-center justify-between bg-stone-950/80 p-3 rounded-xl border border-blue-950 gap-3">
+        <div>
+          <h4 class="font-cinzel text-xs font-bold text-amber-300">Invocation de l'Équipe Complète</h4>
+          <p class="font-crimson text-xs text-stone-400">Place tous les héros créés au centre de votre vue actuelle.</p>
+        </div>
+        <button
+          type="button"
+          id="btn-spawn-all-players"
+          class="px-3.5 py-1.5 text-xs font-cinzel font-bold text-stone-950 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 rounded-lg shadow border border-amber-300 transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap active:scale-95"
+        >
+          <span>⚡</span>
+          <span>Invoquer Tous</span>
+        </button>
+      </div>
+
+      <!-- Liste dynamique des Héros -->
+      <div class="space-y-2.5 max-h-[320px] overflow-y-auto pr-1" id="spawn-players-list">
+        <!-- Rempli dynamiquement par app.js -->
+      </div>
+
+      <div class="flex justify-end pt-3 border-t border-stone-800">
+        <button
+          type="button"
+          id="btn-cancel-player-tokens-modal"
+          class="px-4 py-1.5 text-xs font-cinzel text-stone-400 hover:text-stone-200 bg-stone-950 border border-stone-800 transition cursor-pointer"
+        >
+          Fermer
+        </button>
+      </div>
+
     </div>
   </div>
 

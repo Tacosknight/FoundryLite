@@ -8,6 +8,8 @@ const socket = io();
 // Configuration de la salle et rôle du client actuel (défini lors de la création / connexion)
 let CURRENT_ROOM = null;
 let CURRENT_ROLE = 'player';
+let CURRENT_USER_NAME = '';
+let myAssignedSlot = null;
 
 // Cache local des personnages (pour pré-remplir la modale MJ)
 const charactersCache = new Map();
@@ -782,6 +784,13 @@ function switchView(tabId) {
     scrollChatToBottom();
     scrollDiceToBottom();
   }
+
+  // Si on passe sur la Carte Tactique, rafraîchir l'affichage du Canvas
+  if (tabId === 'map') {
+    if (typeof initOrRefreshTacticalMap === 'function') {
+      initOrRefreshTacticalMap();
+    }
+  }
 }
 
 // ============================================================
@@ -867,6 +876,48 @@ function applyRolePermissions() {
       btnSaveRoom.classList.remove('flex');
       btnSaveRoom.classList.add('hidden');
     }
+  }
+
+  // 5.2 Outils de Carte Tactique et Brouillard de guerre (Réservés au MJ)
+  const mjFogTools = document.getElementById('mj-fog-tools');
+  const mjMapActions = document.getElementById('mj-map-actions');
+  if (mjFogTools) {
+    if (isJoined && isMJ) {
+      mjFogTools.classList.remove('hidden');
+      mjFogTools.classList.add('flex');
+    } else {
+      mjFogTools.classList.remove('flex');
+      mjFogTools.classList.add('hidden');
+    }
+  }
+  if (mjMapActions) {
+    if (isJoined && isMJ) {
+      mjMapActions.classList.remove('hidden');
+      mjMapActions.classList.add('flex');
+    } else {
+      mjMapActions.classList.remove('flex');
+      mjMapActions.classList.add('hidden');
+    }
+  }
+
+  // 5.2.1 Bouton Tour Suivant rapide (visible pour le MJ)
+  const btnNextTurn = document.getElementById('btn-next-turn');
+  if (btnNextTurn) {
+    if (isJoined && isMJ) {
+      btnNextTurn.classList.remove('hidden');
+      btnNextTurn.classList.add('inline-flex');
+    } else {
+      btnNextTurn.classList.remove('inline-flex');
+      btnNextTurn.classList.add('hidden');
+    }
+  }
+
+  // 5.3 Actualisation du brouillard de guerre pour refléter immédiatement le rôle (MJ semi-transparent vs Joueur opaque)
+  if (typeof rebuildFogCanvas === 'function') {
+    rebuildFogCanvas();
+  }
+  if (typeof requestMapRender === 'function') {
+    requestMapRender();
   }
 
   // 6. Mise à jour de l'onglet et du mode de la Forge de Personnage (Création complète vs Renommer uniquement)
@@ -1710,6 +1761,9 @@ socket.on('connect', () => {
       if (res?.characters) {
         updateCharactersGrid(res.characters);
       }
+      if (res?.map && typeof updateTacticalMapState === 'function') {
+        updateTacticalMapState(res.map);
+      }
     });
   }
 
@@ -1730,22 +1784,34 @@ socket.on('disconnect', () => {
 // Réception des mises à jour des fiches
 socket.on('char:vitals_updated', ({ slot, character }) => {
   renderCharacter(slot, character);
+  if (typeof syncTokenVitals === 'function') {
+    syncTokenVitals(slot, character);
+  }
 });
 
 // Réception de la synchronisation complète de la liste des personnages (apparition/départ de joueurs)
 socket.on('char:sync_all', ({ characters }) => {
   updateCharactersGrid(characters);
+  if (typeof syncTokensFromCharacters === 'function') {
+    syncTokensFromCharacters(characters);
+  }
 });
 
 socket.on('room:user_joined', ({ user, characters }) => {
   if (Array.isArray(characters)) {
     updateCharactersGrid(characters);
+    if (typeof syncTokensFromCharacters === 'function') {
+      syncTokensFromCharacters(characters);
+    }
   }
 });
 
 socket.on('room:user_left', ({ user, characters }) => {
   if (Array.isArray(characters)) {
     updateCharactersGrid(characters);
+    if (typeof syncTokensFromCharacters === 'function') {
+      syncTokensFromCharacters(characters);
+    }
   }
 });
 
@@ -1839,6 +1905,129 @@ socket.on('inv:updated', ({ slot, character, inventory }) => {
     }
   }
 });
+
+// ============================================================
+// 5.1 ÉCOUTEURS D'ÉVÉNEMENTS CARTE TACTIQUE (BATTLEMAP & FOG)
+// ============================================================
+
+// Mise à jour de l'image de fond de la Battlemap
+socket.on('map:background_updated', ({ backgroundUrl }) => {
+  tacticalMapState.backgroundUrl = backgroundUrl;
+  loadBackgroundImage(backgroundUrl);
+});
+
+// Déplacement d'un pion émis par un autre joueur ou par le MJ
+socket.on('map:token_moved', ({ tokenId, x, y }) => {
+  const token = (tacticalMapState.tokens || []).find((t) => t.id === tokenId);
+  if (token) {
+    token.x = x;
+    token.y = y;
+    requestMapRender();
+  }
+});
+
+// Ajout d'un nouveau pion (Monstre ou PNJ) par le MJ
+socket.on('map:token_added', ({ token }) => {
+  if (token && !tacticalMapState.tokens.some((t) => t.id === token.id)) {
+    tacticalMapState.tokens.push(token);
+    requestMapRender();
+  }
+});
+
+// Suppression d'un pion de la carte par le MJ
+socket.on('map:token_removed', ({ tokenId }) => {
+  tacticalMapState.tokens = (tacticalMapState.tokens || []).filter((t) => t.id !== tokenId);
+  if (hoveredToken && hoveredToken.id === tokenId) {
+    hoveredToken = null;
+    hideMapTooltip();
+  }
+  requestMapRender();
+});
+
+// Révélation d'une zone du brouillard de guerre par le MJ
+socket.on('map:fog_revealed', ({ area }) => {
+  if (area) {
+    tacticalMapState.revealedAreas.push(area);
+    rebuildFogCanvas();
+    requestMapRender();
+  }
+});
+
+// Réinitialisation complète du brouillard de guerre
+socket.on('map:fog_reset', () => {
+  tacticalMapState.revealedAreas = [];
+  rebuildFogCanvas();
+  requestMapRender();
+});
+
+// Mise à jour des réglages de la carte (grille, aimant, brouillard)
+socket.on('map:settings_updated', (settings) => {
+  if (typeof settings.gridSize === 'number') tacticalMapState.gridSize = settings.gridSize;
+  if (typeof settings.snapToGrid === 'boolean') tacticalMapState.snapToGrid = settings.snapToGrid;
+  if (typeof settings.fogEnabled === 'boolean') tacticalMapState.fogEnabled = settings.fogEnabled;
+  updateMapSettingsUI();
+  rebuildFogCanvas();
+  requestMapRender();
+});
+
+// Réception du changement de tour de jeu émis par le MJ
+socket.on('turn:changed', ({ currentTurn }) => {
+  if (currentTurn) {
+    tacticalMapState.currentTurn = currentTurn;
+    if (typeof updateTurnDisplay === 'function') {
+      updateTurnDisplay(currentTurn);
+    }
+
+    const isMyTurn = (CURRENT_ROLE === 'player') && (
+      (typeof myAssignedSlot === 'number' && currentTurn.slot === myAssignedSlot) ||
+      (CURRENT_USER_NAME && currentTurn.name && currentTurn.name.toLowerCase() === CURRENT_USER_NAME.toLowerCase())
+    );
+
+    if (isMyTurn) {
+      if (typeof playTurnChime === 'function') playTurnChime();
+      if (typeof showTurnNotificationAlert === 'function') showTurnNotificationAlert(currentTurn);
+    }
+
+    if (typeof requestMapRender === 'function') requestMapRender();
+  }
+});
+
+/**
+ * Synchronise les jauges de vie d'un pion joueur quand sa fiche change
+ */
+function syncTokenVitals(slot, character) {
+  if (!character) return;
+  const token = (tacticalMapState.tokens || []).find((t) => t.type === 'player' && t.slot === Number(slot));
+  if (token) {
+    token.hp = character.hp;
+    token.maxHp = character.maxHp;
+    if (character.name) token.name = character.name;
+    if (character.color) token.color = character.color;
+    requestMapRender();
+  }
+}
+
+/**
+ * Synchronise tous les pions joueurs avec la liste des personnages connectés
+ */
+function syncTokensFromCharacters(characters) {
+  if (!Array.isArray(characters)) return;
+  characters.forEach((char) => {
+    if (!char || !char.created) return;
+    let token = (tacticalMapState.tokens || []).find((t) => t.type === 'player' && t.slot === char.slot);
+    if (!token && char.name) {
+      token = (tacticalMapState.tokens || []).find((t) => t.type === 'player' && t.name && t.name.toLowerCase() === char.name.toLowerCase());
+    }
+    if (token) {
+      token.name = char.name;
+      token.color = char.color || token.color;
+      token.icon = char.classIcon || char.raceIcon || token.icon;
+      token.hp = char.hp;
+      token.maxHp = char.maxHp;
+    }
+  });
+  requestMapRender();
+}
 
 // ============================================================
 // 6. INITIALISATION DES INTERACTIONS UTILISATEURS
@@ -2044,6 +2233,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           if (response?.success) {
+            CURRENT_USER_NAME = name;
             // Mise à jour de l'expéditeur du chat avec le nouveau nom
             if (chatSenderInput) {
               chatSenderInput.value = name;
@@ -2081,6 +2271,10 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           if (response?.success) {
+            CURRENT_USER_NAME = name;
+            if (response.character) {
+              myAssignedSlot = response.character.slot;
+            }
             if (chatSenderInput) {
               chatSenderInput.value = name;
             }
@@ -2134,6 +2328,7 @@ document.addEventListener('DOMContentLoaded', () => {
         chatSenderInput.value = username;
       }
       CURRENT_ROLE = role;
+      CURRENT_USER_NAME = username;
 
       // Émission de l'événement room:join
       socket.emit('room:join', { roomId, username, role }, (res) => {
@@ -2156,12 +2351,20 @@ document.addEventListener('DOMContentLoaded', () => {
             });
           }
 
+          // Synchronisation de la carte tactique
+          if (res?.map && typeof updateTacticalMapState === 'function') {
+            updateTacticalMapState(res.map);
+          }
+
           // Mise à jour des permissions UI selon le rôle (MJ vs Joueur)
           applyRolePermissions();
           setConnectionStatus(true);
 
           // Si c'est un joueur avec un personnage déjà forgé (partie sauvegardée), l'assigner
           const existingChar = res.character || (Array.isArray(res.characters) ? res.characters.find(c => c.socketId === socket.id || (c.name && c.name.toLowerCase() === username.toLowerCase())) : null);
+          if (existingChar) {
+            myAssignedSlot = existingChar.slot;
+          }
           const hasForgedChar = existingChar && existingChar.created;
 
           if (hasForgedChar && charNameInput) {
@@ -2403,6 +2606,1431 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initialisation de la gestion d'inventaire
   initInventoryUI();
 
+  // Initialisation de l'interface et des événements de la Carte Tactique
+  initTacticalMapUI();
+
   // Application initiale des permissions de rôle
   applyRolePermissions();
 });
+
+// ============================================================
+// 7. MOTEUR DE CARTE TACTIQUE (BATTLEMAP, FOG OF WAR & TOKENS)
+// ============================================================
+
+let tacticalMapState = {
+  backgroundUrl: null,
+  fogEnabled: true,
+  tokens: [],
+  revealedAreas: [],
+  currentTurn: null
+};
+
+let mapCamera = {
+  x: 0,
+  y: 0,
+  zoom: 1.0,
+  minZoom: 0.5,
+  maxZoom: 3.0
+};
+
+let mapActiveTool = 'select'; // 'select' | 'pan' | 'fog-rect' | 'fog-circle'
+let isMapPanning = false;
+let panStart = { x: 0, y: 0 };
+let cameraStart = { x: 0, y: 0 };
+
+let draggedToken = null;
+let dragOffset = { x: 0, y: 0 };
+let dragTokenInitialPos = { x: 0, y: 0 };
+let lastMoveEmitTime = 0;
+
+let fogDrawState = {
+  isDrawing: false,
+  startX: 0,
+  startY: 0,
+  currentX: 0,
+  currentY: 0
+};
+
+let hoveredToken = null;
+let mapCanvas = null;
+let mapCtx = null;
+let mapContainer = null;
+let offscreenFogCanvas = null;
+let offscreenFogCtx = null;
+let bgImage = null;
+let bgImageLoading = false;
+let mapAnimationId = null;
+let cameraInitialized = false;
+
+const DEFAULT_MAP_WIDTH = 2400;
+const DEFAULT_MAP_HEIGHT = 1600;
+
+/**
+ * Met à jour l'état complet de la carte tactique
+ */
+function updateTacticalMapState(newMap) {
+  if (!newMap) return;
+  tacticalMapState = {
+    ...tacticalMapState,
+    ...newMap
+  };
+  if (!Array.isArray(tacticalMapState.tokens)) tacticalMapState.tokens = [];
+  if (!Array.isArray(tacticalMapState.revealedAreas)) tacticalMapState.revealedAreas = [];
+
+  if (tacticalMapState.backgroundUrl) {
+    loadBackgroundImage(tacticalMapState.backgroundUrl);
+  } else {
+    bgImage = null;
+  }
+
+  updateMapSettingsUI();
+  rebuildFogCanvas();
+  requestMapRender();
+}
+
+/**
+ * Initialise ou rafraîchit la vue de la carte tactique
+ */
+function initOrRefreshTacticalMap() {
+  resizeMapCanvas();
+
+  if (CURRENT_ROOM && (!tacticalMapState.tokens || tacticalMapState.tokens.length === 0)) {
+    socket.emit('map:get_state', { roomId: CURRENT_ROOM }, (res) => {
+      if (res?.success && res.map) {
+        updateTacticalMapState(res.map);
+      }
+    });
+  }
+
+  if (!cameraInitialized) {
+    setTimeout(centerMapCamera, 60);
+  } else {
+    requestMapRender();
+  }
+}
+
+/**
+ * Convertit des coordonnées d'écran (CSS pixels relatifs au canvas) en coordonnées monde
+ */
+function screenToWorld(clientX, clientY) {
+  if (!mapCanvas) return { x: 0, y: 0 };
+  const rect = mapCanvas.getBoundingClientRect();
+  const screenX = clientX - rect.left;
+  const screenY = clientY - rect.top;
+  return {
+    x: (screenX - mapCamera.x) / mapCamera.zoom,
+    y: (screenY - mapCamera.y) / mapCamera.zoom
+  };
+}
+
+/**
+ * Dimensions du monde de la Battlemap (soit l'image naturelle, soit la taille par défaut)
+ */
+function getMapWorldDimensions() {
+  if (bgImage && bgImage.complete && bgImage.naturalWidth > 0) {
+    return {
+      w: bgImage.naturalWidth,
+      h: bgImage.naturalHeight
+    };
+  }
+  return {
+    w: DEFAULT_MAP_WIDTH,
+    h: DEFAULT_MAP_HEIGHT
+  };
+}
+
+/**
+ * Reconstruit le canvas de brouillard de guerre hors-champ (Offscreen Canvas)
+ * Utilise 'destination-out' pour percer les zones révélées de manière ultra fluide
+ */
+function rebuildFogCanvas() {
+  if (!offscreenFogCanvas) {
+    offscreenFogCanvas = document.createElement('canvas');
+    offscreenFogCtx = offscreenFogCanvas.getContext('2d');
+  }
+
+  const { w, h } = getMapWorldDimensions();
+  if (offscreenFogCanvas.width !== w || offscreenFogCanvas.height !== h) {
+    offscreenFogCanvas.width = w;
+    offscreenFogCanvas.height = h;
+  }
+
+  offscreenFogCtx.clearRect(0, 0, w, h);
+
+  if (!tacticalMapState.fogEnabled) return;
+
+  const isMJ = CURRENT_ROLE === 'mj';
+  // Pour le MJ : brouillard semi-transparent sombre pour voir la carte complète
+  // Pour les Joueurs : voile sombre opaque mystique
+  offscreenFogCtx.fillStyle = isMJ ? 'rgba(10, 10, 18, 0.60)' : 'rgba(5, 5, 8, 0.98)';
+  offscreenFogCtx.fillRect(0, 0, w, h);
+
+  // Découpe des zones révélées par le MJ
+  offscreenFogCtx.save();
+  offscreenFogCtx.globalCompositeOperation = 'destination-out';
+  offscreenFogCtx.fillStyle = '#000000';
+
+  (tacticalMapState.revealedAreas || []).forEach((area) => {
+    if (area.type === 'circle') {
+      offscreenFogCtx.beginPath();
+      offscreenFogCtx.arc(area.x, area.y, Math.max(5, area.r || 50), 0, Math.PI * 2);
+      offscreenFogCtx.fill();
+    } else {
+      offscreenFogCtx.fillRect(area.x, area.y, area.w, area.h);
+    }
+  });
+
+  offscreenFogCtx.restore();
+}
+
+/**
+ * Charge l'image d'arrière-plan de la carte
+ */
+function loadBackgroundImage(url) {
+  if (!url) {
+    bgImage = null;
+    bgImageLoading = false;
+    rebuildFogCanvas();
+    requestMapRender();
+    return;
+  }
+
+  bgImageLoading = true;
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    bgImage = img;
+    bgImageLoading = false;
+    rebuildFogCanvas();
+    if (!cameraInitialized) {
+      centerMapCamera();
+    }
+    requestMapRender();
+  };
+  img.onerror = () => {
+    console.warn('[Battlemap] Impossible de charger l\'image de fond :', url);
+    bgImage = null;
+    bgImageLoading = false;
+    rebuildFogCanvas();
+    requestMapRender();
+  };
+  img.src = url;
+}
+
+/**
+ * Ajuste le zoom en restant centré sur les coordonnées spécifiées
+ */
+function setZoom(newZoom, centerX, centerY) {
+  if (!mapCanvas) return;
+  const clampedZoom = Math.min(mapCamera.maxZoom, Math.max(mapCamera.minZoom, newZoom));
+  if (Math.abs(clampedZoom - mapCamera.zoom) < 0.001) return;
+
+  const rect = mapCanvas.getBoundingClientRect();
+  const screenX = typeof centerX === 'number' ? centerX : rect.width / 2;
+  const screenY = typeof centerY === 'number' ? centerY : rect.height / 2;
+
+  const worldX = (screenX - mapCamera.x) / mapCamera.zoom;
+  const worldY = (screenY - mapCamera.y) / mapCamera.zoom;
+
+  mapCamera.zoom = Math.round(clampedZoom * 100) / 100;
+  mapCamera.x = screenX - worldX * mapCamera.zoom;
+  mapCamera.y = screenY - worldY * mapCamera.zoom;
+
+  updateZoomDisplay();
+  requestMapRender();
+}
+
+/**
+ * Met à jour le label de zoom dans la barre d'outils
+ */
+function updateZoomDisplay() {
+  const zoomDisplay = document.getElementById('map-zoom-display');
+  if (zoomDisplay) {
+    zoomDisplay.textContent = `${Math.round(mapCamera.zoom * 100)}%`;
+  }
+}
+
+/**
+ * Recentre la vue sur la carte
+ */
+function centerMapCamera() {
+  if (!mapCanvas) return;
+  const { w, h } = getMapWorldDimensions();
+  const rect = mapCanvas.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return;
+
+  const zoomX = (rect.width * 0.9) / w;
+  const zoomY = (rect.height * 0.9) / h;
+  const targetZoom = Math.min(1.0, Math.max(0.5, Math.min(zoomX, zoomY)));
+
+  mapCamera.zoom = Math.round(targetZoom * 20) / 20;
+  mapCamera.x = (rect.width - w * mapCamera.zoom) / 2;
+  mapCamera.y = (rect.height - h * mapCamera.zoom) / 2;
+
+  cameraInitialized = true;
+  updateZoomDisplay();
+  requestMapRender();
+}
+
+/**
+ * Adapte la taille interne du Canvas HTML5 à son conteneur CSS
+ */
+function resizeMapCanvas() {
+  const container = document.getElementById('map-canvas-container');
+  if (!container || !mapCanvas) return;
+  const rect = container.getBoundingClientRect();
+  const w = Math.floor(rect.width);
+  const h = Math.floor(rect.height);
+  if (w > 0 && h > 0 && (mapCanvas.width !== w || mapCanvas.height !== h)) {
+    mapCanvas.width = w;
+    mapCanvas.height = h;
+    requestMapRender();
+  }
+}
+
+/**
+ * Planifie le rendu du canvas sur la prochaine frame d'animation
+ */
+function requestMapRender() {
+  if (mapAnimationId) return;
+  mapAnimationId = requestAnimationFrame(() => {
+    mapAnimationId = null;
+    renderTacticalMap();
+  });
+}
+
+/**
+ * Dessine l'intégralité du plateau tactique sur le Canvas
+ */
+function renderTacticalMap() {
+  if (!mapCanvas || !mapCtx) return;
+
+  const cw = mapCanvas.width;
+  const ch = mapCanvas.height;
+  if (cw <= 0 || ch <= 0) return;
+
+  mapCtx.clearRect(0, 0, cw, ch);
+
+  // Fond du conteneur en noir absolu
+  mapCtx.fillStyle = '#08080c';
+  mapCtx.fillRect(0, 0, cw, ch);
+
+  const { w: worldW, h: worldH } = getMapWorldDimensions();
+
+  mapCtx.save();
+  // Application de la transformation caméra (Pan & Zoom)
+  mapCtx.translate(mapCamera.x, mapCamera.y);
+  mapCtx.scale(mapCamera.zoom, mapCamera.zoom);
+
+  // 1. Fond de carte (Battlemap ou dalles de pierre gothiques)
+  if (bgImage && bgImage.complete && bgImage.naturalWidth > 0) {
+    mapCtx.drawImage(bgImage, 0, 0, worldW, worldH);
+  } else {
+    // Dalles sombres tactiques par défaut
+    mapCtx.fillStyle = '#181822';
+    mapCtx.fillRect(0, 0, worldW, worldH);
+
+    mapCtx.fillStyle = '#1e1e2b';
+    const slab = 100;
+    for (let px = 0; px < worldW; px += slab) {
+      for (let py = 0; py < worldH; py += slab) {
+        if (((px / slab) + (py / slab)) % 2 === 0) {
+          mapCtx.fillRect(px, py, slab, slab);
+        }
+      }
+    }
+  }
+
+  // 2. Bordure du plateau de jeu
+  mapCtx.save();
+  mapCtx.strokeStyle = '#78350f';
+  mapCtx.lineWidth = 3;
+  mapCtx.strokeRect(0, 0, worldW, worldH);
+  mapCtx.restore();
+
+  // 4. Pions (Tokens)
+  const tokens = tacticalMapState.tokens || [];
+  const sortedTokens = [...tokens].sort((a, b) => {
+    if (draggedToken && a.id === draggedToken.id) return 1;
+    if (draggedToken && b.id === draggedToken.id) return -1;
+    if (hoveredToken && a.id === hoveredToken.id) return 1;
+    if (hoveredToken && b.id === hoveredToken.id) return -1;
+    return 0;
+  });
+
+  sortedTokens.forEach((token) => {
+    const isHovered = hoveredToken && hoveredToken.id === token.id;
+    const isDragged = draggedToken && draggedToken.id === token.id;
+    drawToken(mapCtx, token, isHovered, isDragged);
+  });
+
+  // 5. Calque de Brouillard de Guerre (Fog of War)
+  if (tacticalMapState.fogEnabled && offscreenFogCanvas) {
+    mapCtx.drawImage(offscreenFogCanvas, 0, 0, worldW, worldH);
+  }
+
+  // 6. Prévisualisation en direct lors du tracé de brouillard par le MJ
+  if (fogDrawState.isDrawing && CURRENT_ROLE === 'mj') {
+    mapCtx.save();
+    mapCtx.strokeStyle = '#f59e0b';
+    mapCtx.fillStyle = 'rgba(245, 158, 11, 0.25)';
+    mapCtx.lineWidth = 2;
+    mapCtx.setLineDash([6, 4]);
+
+    if (mapActiveTool === 'fog-circle') {
+      const dx = fogDrawState.currentX - fogDrawState.startX;
+      const dy = fogDrawState.currentY - fogDrawState.startY;
+      const r = Math.hypot(dx, dy);
+      mapCtx.beginPath();
+      mapCtx.arc(fogDrawState.startX, fogDrawState.startY, r, 0, Math.PI * 2);
+      mapCtx.fill();
+      mapCtx.stroke();
+    } else if (mapActiveTool === 'fog-rect') {
+      const x = Math.min(fogDrawState.startX, fogDrawState.currentX);
+      const y = Math.min(fogDrawState.startY, fogDrawState.currentY);
+      const w = Math.abs(fogDrawState.currentX - fogDrawState.startX);
+      const h = Math.abs(fogDrawState.currentY - fogDrawState.startY);
+      mapCtx.fillRect(x, y, w, h);
+      mapCtx.strokeRect(x, y, w, h);
+    }
+    mapCtx.restore();
+  }
+
+  mapCtx.restore();
+}
+
+/**
+ * Dessine un pion individuel sur le Canvas
+ */
+function drawToken(ctx, token, isHovered, isDragged) {
+  const radius = (token.size || 40) / 2;
+  const isMonster = token.type === 'monster';
+
+  ctx.save();
+
+  // Halo lumineux au survol ou lors du déplacement
+  if (isDragged || isHovered) {
+    ctx.shadowColor = token.color || (isMonster ? '#ef4444' : '#f59e0b');
+    ctx.shadowBlur = isDragged ? 16 : 10;
+  }
+
+  // Socle circulaire du pion
+  ctx.beginPath();
+  ctx.arc(token.x, token.y, radius, 0, Math.PI * 2);
+  ctx.fillStyle = token.color || (isMonster ? '#dc2626' : '#2563eb');
+  ctx.fill();
+
+  // Cerclage extérieur métallique
+  ctx.lineWidth = isDragged ? 4 : (isHovered ? 3 : 2);
+  ctx.strokeStyle = isMonster ? '#7f1d1d' : '#fef08a';
+  ctx.stroke();
+
+  // Bague intérieure
+  ctx.beginPath();
+  ctx.arc(token.x, token.y, Math.max(2, radius - 3), 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.45)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.shadowBlur = 0;
+
+  // Icône ou Initiale au centre du pion
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `${Math.round(radius * 1.15)}px sans-serif`;
+  const iconStr = token.icon || (token.name ? token.name[0].toUpperCase() : '⚔️');
+  ctx.fillText(iconStr, token.x, token.y + 1);
+
+  // Cartouche de nom sous le pion
+  const nameText = token.name || (isMonster ? 'Monstre' : 'Joueur');
+  ctx.font = 'bold 11px Cinzel, serif, sans-serif';
+  const textWidth = ctx.measureText(nameText).width;
+  const badgeW = textWidth + 12;
+  const badgeH = 16;
+  const badgeX = token.x - badgeW / 2;
+  const badgeY = token.y + radius + 4;
+
+  ctx.fillStyle = 'rgba(8, 8, 12, 0.9)';
+  ctx.strokeStyle = token.color || '#d97706';
+  ctx.lineWidth = 1;
+
+  ctx.beginPath();
+  const r = 4;
+  ctx.moveTo(badgeX + r, badgeY);
+  ctx.lineTo(badgeX + badgeW - r, badgeY);
+  ctx.arcTo(badgeX + badgeW, badgeY, badgeX + badgeW, badgeY + badgeH, r);
+  ctx.lineTo(badgeX + badgeW, badgeY + badgeH - r);
+  ctx.arcTo(badgeX + badgeW, badgeY + badgeH, badgeX, badgeY + badgeH, r);
+  ctx.lineTo(badgeX + r, badgeY + badgeH);
+  ctx.arcTo(badgeX, badgeY + badgeH, badgeX, badgeY, r);
+  ctx.lineTo(badgeX, badgeY + r);
+  ctx.arcTo(badgeX, badgeY, badgeX + badgeW, badgeY, r);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillText(nameText, token.x, badgeY + badgeH / 2 + 1);
+
+  // Aura animée et voyante si c'est le tour de ce joueur/pion
+  const isCurrentTurn = Boolean(
+    tacticalMapState.currentTurn && (
+      (typeof tacticalMapState.currentTurn.slot === 'number' && token.slot === tacticalMapState.currentTurn.slot) ||
+      (token.name && tacticalMapState.currentTurn.name && token.name.toLowerCase() === tacticalMapState.currentTurn.name.toLowerCase())
+    )
+  );
+
+  if (isCurrentTurn) {
+    ctx.save();
+    const pulseOffset = Math.sin(Date.now() / 250) * 3;
+    ctx.beginPath();
+    ctx.arc(token.x, token.y, radius + 8 + pulseOffset, 0, Math.PI * 2);
+    ctx.strokeStyle = '#fbbf24';
+    ctx.lineWidth = 3;
+    ctx.shadowColor = '#f59e0b';
+    ctx.shadowBlur = 14;
+    ctx.stroke();
+
+    // Petit insigne "⚔️ TOUR" au-dessus du pion
+    ctx.font = 'bold 9px Cinzel, sans-serif';
+    ctx.fillStyle = '#fbbf24';
+    ctx.textAlign = 'center';
+    ctx.fillText('⚔️ TOUR', token.x, token.y - radius - 6);
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+/**
+ * Vérifie si le client connecté a le droit de déplacer ce pion
+ */
+function canUserMoveToken(token) {
+  if (!token) return false;
+  // Le MJ a un contrôle absolu sur tous les pions
+  if (CURRENT_ROLE === 'mj') return true;
+
+  // Un joueur ne peut déplacer que son propre pion
+  if (token.type === 'player') {
+    if (typeof myAssignedSlot === 'number' && token.slot === myAssignedSlot) return true;
+    if (CURRENT_USER_NAME && token.name && token.name.toLowerCase() === CURRENT_USER_NAME.toLowerCase()) return true;
+
+    const myChar = [...charactersCache.values()].find(
+      (c) => c && (c.socketId === socket.id || (c.name && CURRENT_USER_NAME && c.name.toLowerCase() === CURRENT_USER_NAME.toLowerCase()))
+    );
+    if (myChar && token.slot === myChar.slot) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Affiche l'infobulle d'informations tactiques d'un pion
+ */
+function showMapTooltip(token, clientX, clientY) {
+  const tooltip = document.getElementById('map-token-tooltip');
+  if (!tooltip || !mapContainer) return;
+
+  const iconEl = document.getElementById('tooltip-token-icon');
+  const nameEl = document.getElementById('tooltip-token-name');
+  const typeEl = document.getElementById('tooltip-token-type');
+  const hpContainer = document.getElementById('tooltip-token-hp-container');
+  const hpValEl = document.getElementById('tooltip-token-hp-val');
+  const hpBarEl = document.getElementById('tooltip-token-hp-bar');
+
+  if (iconEl) iconEl.textContent = token.icon || '🛡️';
+  if (nameEl) nameEl.textContent = token.name || 'Pion';
+  if (typeEl) {
+    typeEl.textContent = token.type === 'monster' ? 'Monstre / PNJ' : (token.slot !== undefined ? `Héros (Slot #${token.slot})` : 'Héros');
+  }
+
+  if (hpContainer) {
+    if (typeof token.hp === 'number' && typeof token.maxHp === 'number' && token.maxHp > 0) {
+      hpContainer.classList.remove('hidden');
+      if (hpValEl) hpValEl.textContent = `${token.hp} / ${token.maxHp}`;
+      if (hpBarEl) {
+        const pct = Math.max(0, Math.min(100, Math.round((token.hp / token.maxHp) * 100)));
+        hpBarEl.style.width = `${pct}%`;
+        hpBarEl.className = `h-full transition-all duration-200 ${pct > 50 ? 'bg-emerald-500' : (pct > 25 ? 'bg-amber-500' : 'bg-rose-600')}`;
+      }
+    } else {
+      hpContainer.classList.add('hidden');
+    }
+  }
+
+  const containerRect = mapContainer.getBoundingClientRect();
+  let left = clientX - containerRect.left + 15;
+  let top = clientY - containerRect.top + 15;
+
+  if (left + 160 > containerRect.width) left = clientX - containerRect.left - 170;
+  if (top + 100 > containerRect.height) top = clientY - containerRect.top - 110;
+
+  tooltip.style.left = `${Math.max(10, left)}px`;
+  tooltip.style.top = `${Math.max(10, top)}px`;
+  tooltip.classList.remove('hidden');
+}
+
+/**
+ * Masque l'infobulle tactique
+ */
+function hideMapTooltip() {
+  const tooltip = document.getElementById('map-token-tooltip');
+  if (tooltip) tooltip.classList.add('hidden');
+}
+
+/**
+ * Met à jour l'outil actif dans l'interface
+ */
+function setMapTool(toolName) {
+  mapActiveTool = toolName;
+  document.querySelectorAll('.map-tool-btn').forEach((btn) => {
+    const isCurrent = btn.getAttribute('data-map-tool') === toolName;
+    if (isCurrent) {
+      btn.classList.remove('bg-stone-950', 'text-stone-300', 'border', 'border-stone-800');
+      btn.classList.add('bg-amber-500', 'text-stone-950', 'shadow');
+    } else {
+      btn.classList.remove('bg-amber-500', 'text-stone-950', 'shadow');
+      btn.classList.add('bg-stone-950', 'text-stone-300', 'border', 'border-stone-800');
+    }
+  });
+
+  const notice = document.getElementById('hud-fog-drawing-notice');
+  if (notice) {
+    if (toolName.startsWith('fog-') && CURRENT_ROLE === 'mj') {
+      notice.classList.remove('hidden');
+    } else {
+      notice.classList.add('hidden');
+    }
+  }
+
+  if (!mapCanvas) return;
+  if (toolName === 'pan') {
+    mapCanvas.style.cursor = 'grab';
+  } else if (toolName.startsWith('fog-')) {
+    mapCanvas.style.cursor = 'crosshair';
+  } else {
+    mapCanvas.style.cursor = 'default';
+  }
+}
+
+/**
+ * Met à jour les libellés de paramètres HUD (brouillard)
+ */
+function updateMapSettingsUI() {
+  const hudFog = document.getElementById('hud-fog-status');
+  if (hudFog) {
+    hudFog.textContent = tacticalMapState.fogEnabled
+      ? (CURRENT_ROLE === 'mj' ? 'Brouillard Actif (MJ)' : 'Brouillard Actif')
+      : 'Brouillard Inactif';
+  }
+}
+
+/**
+ * Initialise l'ensemble des interactions du moteur de carte et des modales
+ */
+function initTacticalMapUI() {
+  mapCanvas = document.getElementById('tactical-map-canvas');
+  mapContainer = document.getElementById('map-canvas-container');
+  if (!mapCanvas || !mapContainer) return;
+  mapCtx = mapCanvas.getContext('2d');
+
+  resizeMapCanvas();
+  window.addEventListener('resize', resizeMapCanvas);
+
+  // 1. Outils de la barre supérieure
+  document.querySelectorAll('.map-tool-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const tool = btn.getAttribute('data-map-tool');
+      if (tool) setMapTool(tool);
+    });
+  });
+
+  // Zoom buttons
+  const btnZoomIn = document.getElementById('btn-map-zoom-in');
+  if (btnZoomIn) {
+    btnZoomIn.addEventListener('click', () => setZoom(mapCamera.zoom + 0.25));
+  }
+
+  const btnZoomOut = document.getElementById('btn-map-zoom-out');
+  if (btnZoomOut) {
+    btnZoomOut.addEventListener('click', () => setZoom(mapCamera.zoom - 0.25));
+  }
+
+  const btnCenter = document.getElementById('btn-map-center');
+  if (btnCenter) {
+    btnCenter.addEventListener('click', centerMapCamera);
+  }
+
+  // Réinitialiser le brouillard (MJ)
+  const btnResetFog = document.getElementById('btn-reset-fog');
+  if (btnResetFog) {
+    btnResetFog.addEventListener('click', () => {
+      if (CURRENT_ROLE !== 'mj' || !CURRENT_ROOM) return;
+      if (confirm('Voulez-vous réinitialiser le brouillard de guerre ? Toute la carte redeviendra obscure pour les joueurs.')) {
+        socket.emit('map:reset_fog', { roomId: CURRENT_ROOM, role: CURRENT_ROLE }, (res) => {
+          if (res?.success) {
+            tacticalMapState.revealedAreas = [];
+            rebuildFogCanvas();
+            requestMapRender();
+          }
+        });
+      }
+    });
+  }
+
+  // 2. Événements Souris sur le Canvas
+  mapCanvas.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    // Clic droit par le MJ sur n'importe quel pion : proposition de suppression rapide
+    if (CURRENT_ROLE === 'mj' && hoveredToken) {
+      const isPlayer = hoveredToken.type === 'player';
+      const promptMsg = isPlayer
+        ? `Voulez-vous retirer le pion de ${hoveredToken.name} de la carte ?\n(Vous pourrez le ré-invoquer à tout moment via le bouton "+ Pion Joueur")`
+        : `Voulez-vous retirer le monstre "${hoveredToken.name}" de la carte ?`;
+
+      if (confirm(promptMsg)) {
+        const tokenId = hoveredToken.id;
+        socket.emit('map:remove_token', { roomId: CURRENT_ROOM, tokenId, role: CURRENT_ROLE }, (res) => {
+          if (res?.success) {
+            tacticalMapState.tokens = tacticalMapState.tokens.filter((t) => t.id !== tokenId);
+            hoveredToken = null;
+            hideMapTooltip();
+            requestMapRender();
+          }
+        });
+      }
+    }
+  });
+
+  mapCanvas.addEventListener('mousedown', (e) => {
+    const { x: worldX, y: worldY } = screenToWorld(e.clientX, e.clientY);
+
+    // Pan caméra : Clic molette (1), clic droit (2), ou outil 'pan' avec clic gauche (0)
+    if (e.button === 1 || e.button === 2 || (e.button === 0 && mapActiveTool === 'pan')) {
+      isMapPanning = true;
+      panStart = { x: e.clientX, y: e.clientY };
+      cameraStart = { x: mapCamera.x, y: mapCamera.y };
+      mapCanvas.style.cursor = 'grabbing';
+      return;
+    }
+
+    if (e.button === 0) {
+      // Outil Sélection / Déplacement de pions
+      if (mapActiveTool === 'select') {
+        const tokens = tacticalMapState.tokens || [];
+        let clickedToken = null;
+
+        // Détection du pion sous le curseur (recherche inverse pour prendre le pion au-dessus)
+        for (let i = tokens.length - 1; i >= 0; i--) {
+          const t = tokens[i];
+          const radius = (t.size || 40) / 2;
+          const dist = Math.hypot(worldX - t.x, worldY - t.y);
+          if (dist <= radius + 6) {
+            clickedToken = t;
+            break;
+          }
+        }
+
+        if (clickedToken) {
+          if (canUserMoveToken(clickedToken)) {
+            draggedToken = clickedToken;
+            dragTokenInitialPos = { x: clickedToken.x, y: clickedToken.y };
+            dragOffset = { x: worldX - clickedToken.x, y: worldY - clickedToken.y };
+            mapCanvas.style.cursor = 'grabbing';
+            hideMapTooltip();
+          } else {
+            alert('Action refusée : vous ne pouvez déplacer que votre propre pion.');
+          }
+          return;
+        }
+      }
+
+      // Outils Révélation du Brouillard (MJ uniquement)
+      if ((mapActiveTool === 'fog-rect' || mapActiveTool === 'fog-circle') && CURRENT_ROLE === 'mj') {
+        fogDrawState.isDrawing = true;
+        fogDrawState.startX = worldX;
+        fogDrawState.startY = worldY;
+        fogDrawState.currentX = worldX;
+        fogDrawState.currentY = worldY;
+        requestMapRender();
+      }
+    }
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!mapCanvas) return;
+    const { x: worldX, y: worldY } = screenToWorld(e.clientX, e.clientY);
+
+    // Mise à jour des coordonnées HUD
+    const hudCoords = document.getElementById('hud-coordinates');
+    if (hudCoords) {
+      hudCoords.textContent = `X: ${Math.round(worldX)} | Y: ${Math.round(worldY)}`;
+    }
+
+    // 1. Pan de caméra actif
+    if (isMapPanning) {
+      const dx = e.clientX - panStart.x;
+      const dy = e.clientY - panStart.y;
+      mapCamera.x = cameraStart.x + dx;
+      mapCamera.y = cameraStart.y + dy;
+      requestMapRender();
+      return;
+    }
+
+    // 2. Déplacement d'un pion actif (mouvement totalement libre et continu)
+    if (draggedToken) {
+      const targetX = worldX - dragOffset.x;
+      const targetY = worldY - dragOffset.y;
+
+      draggedToken.x = targetX;
+      draggedToken.y = targetY;
+
+      // Émission throttled à ~30ms pour un suivi fluide côté clients distants sans saturer la bande passante
+      const now = Date.now();
+      if (now - lastMoveEmitTime > 30 && CURRENT_ROOM) {
+        lastMoveEmitTime = now;
+        socket.emit('map:move_token', {
+          roomId: CURRENT_ROOM,
+          tokenId: draggedToken.id,
+          x: targetX,
+          y: targetY,
+          role: CURRENT_ROLE
+        });
+      }
+
+      requestMapRender();
+      return;
+    }
+
+    // 3. Tracé de brouillard actif
+    if (fogDrawState.isDrawing && CURRENT_ROLE === 'mj') {
+      fogDrawState.currentX = worldX;
+      fogDrawState.currentY = worldY;
+      requestMapRender();
+      return;
+    }
+
+    // 4. Détection du survol de pion
+    const rect = mapCanvas.getBoundingClientRect();
+    if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+      const tokens = tacticalMapState.tokens || [];
+      let foundToken = null;
+
+      for (let i = tokens.length - 1; i >= 0; i--) {
+        const t = tokens[i];
+        const radius = (t.size || 40) / 2;
+        const dist = Math.hypot(worldX - t.x, worldY - t.y);
+        if (dist <= radius + 6) {
+          foundToken = t;
+          break;
+        }
+      }
+
+      if (foundToken) {
+        hoveredToken = foundToken;
+        mapCanvas.style.cursor = canUserMoveToken(foundToken) ? 'grab' : 'pointer';
+        showMapTooltip(foundToken, e.clientX, e.clientY);
+      } else {
+        hoveredToken = null;
+        hideMapTooltip();
+        if (mapActiveTool === 'pan') {
+          mapCanvas.style.cursor = 'grab';
+        } else if (mapActiveTool.startsWith('fog-')) {
+          mapCanvas.style.cursor = 'crosshair';
+        } else {
+          mapCanvas.style.cursor = 'default';
+        }
+      }
+      requestMapRender();
+    }
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (isMapPanning) {
+      isMapPanning = false;
+      mapCanvas.style.cursor = mapActiveTool === 'pan' ? 'grab' : 'default';
+    }
+
+    if (draggedToken) {
+      if (CURRENT_ROOM) {
+        socket.emit('map:move_token', {
+          roomId: CURRENT_ROOM,
+          tokenId: draggedToken.id,
+          x: draggedToken.x,
+          y: draggedToken.y,
+          role: CURRENT_ROLE
+        });
+      }
+      draggedToken = null;
+      mapCanvas.style.cursor = 'default';
+      requestMapRender();
+    }
+
+    if (fogDrawState.isDrawing && CURRENT_ROLE === 'mj') {
+      fogDrawState.isDrawing = false;
+      let area = null;
+
+      if (mapActiveTool === 'fog-rect') {
+        const x = Math.min(fogDrawState.startX, fogDrawState.currentX);
+        const y = Math.min(fogDrawState.startY, fogDrawState.currentY);
+        const w = Math.abs(fogDrawState.currentX - fogDrawState.startX);
+        const h = Math.abs(fogDrawState.currentY - fogDrawState.startY);
+        if (w >= 10 && h >= 10) {
+          area = { type: 'rect', x, y, w, h };
+        }
+      } else if (mapActiveTool === 'fog-circle') {
+        const dx = fogDrawState.currentX - fogDrawState.startX;
+        const dy = fogDrawState.currentY - fogDrawState.startY;
+        const r = Math.round(Math.hypot(dx, dy));
+        if (r >= 10) {
+          area = { type: 'circle', x: fogDrawState.startX, y: fogDrawState.startY, r };
+        }
+      }
+
+      if (area && CURRENT_ROOM) {
+        socket.emit('map:reveal_fog', {
+          roomId: CURRENT_ROOM,
+          role: CURRENT_ROLE,
+          area
+        }, (res) => {
+          if (res?.success && res.area) {
+            tacticalMapState.revealedAreas.push(res.area);
+            rebuildFogCanvas();
+            requestMapRender();
+          }
+        });
+      }
+      requestMapRender();
+    }
+  });
+
+  // Zoom via molette centré sur le curseur
+  mapCanvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.15 : 0.87;
+    const rect = mapCanvas.getBoundingClientRect();
+    const cursorX = e.clientX - rect.left;
+    const cursorY = e.clientY - rect.top;
+    setZoom(mapCamera.zoom * factor, cursorX, cursorY);
+  }, { passive: false });
+
+  // 3. Modale d'ajout de Monstre (MJ)
+  initMonsterModalUI();
+
+  // 4. Modale de changement de fond de Battlemap (MJ)
+  initMapBgModalUI();
+
+  // 5. Modale d'invocation des Pions Joueurs (MJ)
+  initPlayerTokensModalUI();
+
+  // 6. Contrôles de Tour de Jeu
+  initTurnControlsUI();
+
+  if (tacticalMapState.currentTurn) {
+    updateTurnDisplay(tacticalMapState.currentTurn);
+  }
+
+  updateMapSettingsUI();
+}
+
+/**
+ * Initialise la modale d'invocation de monstre
+ */
+function initMonsterModalUI() {
+  const modalAddMonster = document.getElementById('modal-add-monster');
+  const btnOpenModal = document.getElementById('btn-open-monster-modal');
+  const btnCloseModal = document.getElementById('btn-close-monster-modal');
+  const btnCancel = document.getElementById('btn-cancel-monster');
+  const formAdd = document.getElementById('form-add-monster');
+  const iconInput = document.getElementById('monster-icon-input');
+  const colorInput = document.getElementById('monster-color-input');
+
+  if (!modalAddMonster || !formAdd) return;
+
+  const openModal = () => {
+    modalAddMonster.classList.remove('hidden');
+    const nameInput = document.getElementById('monster-name-input');
+    if (nameInput) nameInput.focus();
+  };
+
+  const closeModal = () => {
+    modalAddMonster.classList.add('hidden');
+  };
+
+  if (btnOpenModal) btnOpenModal.addEventListener('click', openModal);
+  if (btnCloseModal) btnCloseModal.addEventListener('click', closeModal);
+  if (btnCancel) btnCancel.addEventListener('click', closeModal);
+
+  // Sélecteur d'icônes prédéfinies
+  document.querySelectorAll('#monster-icon-presets .btn-preset-icon').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const icon = btn.getAttribute('data-icon');
+      if (icon && iconInput) {
+        iconInput.value = icon;
+      }
+    });
+  });
+
+  // Sélecteur de couleurs de socle
+  document.querySelectorAll('#monster-color-presets button').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const color = btn.getAttribute('data-color');
+      if (color && colorInput) {
+        colorInput.value = color;
+        document.querySelectorAll('#monster-color-presets button').forEach((b) => {
+          b.classList.remove('ring-2', 'ring-red-500/50', 'border-white');
+          b.classList.add('border-stone-800');
+        });
+        btn.classList.add('ring-2', 'ring-red-500/50', 'border-white');
+        btn.classList.remove('border-stone-800');
+      }
+    });
+  });
+
+  // Soumission du formulaire
+  formAdd.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (!CURRENT_ROOM || CURRENT_ROLE !== 'mj') return;
+
+    const name = document.getElementById('monster-name-input')?.value.trim();
+    const icon = iconInput?.value.trim() || '👹';
+    const hp = parseInt(document.getElementById('monster-hp-input')?.value, 10) || 15;
+    const maxHp = parseInt(document.getElementById('monster-max-hp-input')?.value, 10) || 15;
+    const color = colorInput?.value || '#dc2626';
+
+    if (!name) {
+      alert('Veuillez renseigner un nom pour la créature.');
+      return;
+    }
+
+    // Spawn du monstre au centre de la vue courante
+    const rect = mapCanvas ? mapCanvas.getBoundingClientRect() : { width: 800, height: 600 };
+    const spawnX = Math.round((rect.width / 2 - mapCamera.x) / mapCamera.zoom);
+    const spawnY = Math.round((rect.height / 2 - mapCamera.y) / mapCamera.zoom);
+
+    socket.emit('map:add_token', {
+      roomId: CURRENT_ROOM,
+      role: CURRENT_ROLE,
+      token: {
+        name,
+        icon,
+        hp,
+        maxHp,
+        color,
+        x: spawnX,
+        y: spawnY,
+        size: 40
+      }
+    }, (res) => {
+      if (res?.success) {
+        closeModal();
+        formAdd.reset();
+      } else {
+        alert(`Erreur : ${res?.error || 'Échec de l\'invocation du monstre'}`);
+      }
+    });
+  });
+}
+
+/**
+ * Initialise la modale de configuration du fond de Battlemap
+ */
+function initMapBgModalUI() {
+  const modalMapBg = document.getElementById('modal-map-background');
+  const btnOpenModal = document.getElementById('btn-open-bg-modal');
+  const btnCloseModal = document.getElementById('btn-close-bg-modal');
+  const btnCancel = document.getElementById('btn-cancel-bg-modal');
+  const btnApply = document.getElementById('btn-apply-map-bg');
+  const btnRemove = document.getElementById('btn-remove-map-bg');
+  const fileInput = document.getElementById('map-bg-file-input');
+  const btnTriggerFile = document.getElementById('btn-trigger-map-bg-file');
+  const labelFileName = document.getElementById('label-map-bg-filename');
+  const urlInput = document.getElementById('map-bg-url-input');
+
+  let selectedMapFile = null;
+
+  if (!modalMapBg) return;
+
+  const openModal = () => {
+    modalMapBg.classList.remove('hidden');
+    if (urlInput) urlInput.value = tacticalMapState.backgroundUrl || '';
+    selectedMapFile = null;
+    if (labelFileName) labelFileName.textContent = 'Choisir un fichier image de map...';
+  };
+
+  const closeModal = () => {
+    modalMapBg.classList.add('hidden');
+    selectedMapFile = null;
+  };
+
+  if (btnOpenModal) btnOpenModal.addEventListener('click', openModal);
+  if (btnCloseModal) btnCloseModal.addEventListener('click', closeModal);
+  if (btnCancel) btnCancel.addEventListener('click', closeModal);
+
+  if (btnTriggerFile && fileInput) {
+    btnTriggerFile.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files && fileInput.files[0]) {
+        selectedMapFile = fileInput.files[0];
+        if (labelFileName) {
+          labelFileName.textContent = `Fichier sélectionné : ${selectedMapFile.name} (${Math.round(selectedMapFile.size / 1024)} Ko)`;
+        }
+      }
+    });
+  }
+
+  // Retirer le fond
+  if (btnRemove) {
+    btnRemove.addEventListener('click', () => {
+      if (!CURRENT_ROOM || CURRENT_ROLE !== 'mj') return;
+      socket.emit('map:set_background', {
+        roomId: CURRENT_ROOM,
+        backgroundUrl: null,
+        role: CURRENT_ROLE
+      }, (res) => {
+        if (res?.success) closeModal();
+      });
+    });
+  }
+
+  // Appliquer le fond
+  if (btnApply) {
+    btnApply.addEventListener('click', async () => {
+      if (!CURRENT_ROOM || CURRENT_ROLE !== 'mj') return;
+
+      if (selectedMapFile) {
+        btnApply.textContent = 'Envoi de l\'image...';
+        btnApply.disabled = true;
+
+        try {
+          const formData = new FormData();
+          formData.append('file', selectedMapFile);
+
+          const response = await fetch('/api/upload', {
+            method: 'POST',
+            body: formData
+          });
+          const data = await response.json();
+
+          if (!data.success || !data.url) {
+            throw new Error(data.error || 'Erreur lors de l\'upload');
+          }
+
+          socket.emit('map:set_background', {
+            roomId: CURRENT_ROOM,
+            backgroundUrl: data.url,
+            role: CURRENT_ROLE
+          }, (res) => {
+            btnApply.textContent = 'Appliquer le Fond';
+            btnApply.disabled = false;
+            if (res?.success) closeModal();
+          });
+        } catch (err) {
+          console.error('[Battlemap Upload Error]', err);
+          alert(`Erreur d'upload : ${err.message}`);
+          btnApply.textContent = 'Appliquer le Fond';
+          btnApply.disabled = false;
+        }
+      } else {
+        const url = urlInput ? urlInput.value.trim() : '';
+        socket.emit('map:set_background', {
+          roomId: CURRENT_ROOM,
+          backgroundUrl: url || null,
+          role: CURRENT_ROLE
+        }, (res) => {
+          if (res?.success) closeModal();
+        });
+      }
+    });
+  }
+}
+
+/**
+ * Joue un carillon fantastique clair via la Web Audio API sans aucun asset audio externe
+ */
+function playTurnChime() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+
+    // Première note de cloche dorée (Mi 5 - 659 Hz)
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(659.25, now);
+    gain1.gain.setValueAtTime(0.25, now);
+    gain1.gain.exponentialRampToValueAtTime(0.0001, now + 0.8);
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.8);
+
+    // Seconde note plus brillante (La 5 - 880 Hz, décalée de 120ms)
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = 'triangle';
+    osc2.frequency.setValueAtTime(880, now + 0.12);
+    gain2.gain.setValueAtTime(0.28, now + 0.12);
+    gain2.gain.exponentialRampToValueAtTime(0.0001, now + 1.2);
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.start(now + 0.12);
+    osc2.stop(now + 1.2);
+  } catch (err) {
+    // Silencieux si l'audio est temporairement restreint par les règles de geste utilisateur du navigateur
+  }
+}
+
+/**
+ * Met à jour l'affichage du tour actif dans la barre d'outils
+ */
+function updateTurnDisplay(currentTurn) {
+  const turnNameEl = document.getElementById('turn-active-name');
+  if (turnNameEl) {
+    if (currentTurn && currentTurn.name) {
+      turnNameEl.textContent = `${currentTurn.icon || '👤'} ${currentTurn.name}`;
+      turnNameEl.style.color = currentTurn.color || '#f59e0b';
+    } else {
+      turnNameEl.textContent = 'En attente';
+      turnNameEl.style.color = '#a8a29e';
+    }
+  }
+}
+
+let turnAlertTimeout = null;
+
+/**
+ * Affiche une alerte visuelle au joueur quand c'est son tour
+ */
+function showTurnNotificationAlert(currentTurn) {
+  const alertEl = document.getElementById('turn-player-alert');
+  if (!alertEl) return;
+
+  alertEl.classList.remove('hidden');
+
+  if (turnAlertTimeout) {
+    clearTimeout(turnAlertTimeout);
+  }
+  turnAlertTimeout = setTimeout(() => {
+    hideTurnNotificationAlert();
+  }, 6500);
+}
+
+/**
+ * Masque l'alerte de tour
+ */
+function hideTurnNotificationAlert() {
+  const alertEl = document.getElementById('turn-player-alert');
+  if (alertEl) {
+    alertEl.classList.add('hidden');
+  }
+  if (turnAlertTimeout) {
+    clearTimeout(turnAlertTimeout);
+    turnAlertTimeout = null;
+  }
+}
+
+/**
+ * Initialise les contrôles de Tour de Jeu
+ */
+function initTurnControlsUI() {
+  const btnNext = document.getElementById('btn-next-turn');
+  if (btnNext) {
+    btnNext.addEventListener('click', () => {
+      if (!CURRENT_ROOM || CURRENT_ROLE !== 'mj') return;
+      socket.emit('turn:next', {
+        roomId: CURRENT_ROOM,
+        role: CURRENT_ROLE
+      }, (res) => {
+        if (res?.success && res.currentTurn) {
+          updateTurnDisplay(res.currentTurn);
+          requestMapRender();
+        } else if (res?.error) {
+          alert(`Info : ${res.error}`);
+        }
+      });
+    });
+  }
+
+  const btnAck = document.getElementById('btn-ack-turn');
+  if (btnAck) {
+    btnAck.addEventListener('click', hideTurnNotificationAlert);
+  }
+
+  const alertEl = document.getElementById('turn-player-alert');
+  if (alertEl) {
+    alertEl.addEventListener('click', (e) => {
+      if (e.target !== btnAck) hideTurnNotificationAlert();
+    });
+  }
+}
+
+/**
+ * Initialise la modale permettant au MJ de faire apparaître / téléporter les pions de joueurs
+ */
+function initPlayerTokensModalUI() {
+  const modal = document.getElementById('modal-spawn-player-tokens');
+  const btnOpen = document.getElementById('btn-open-player-tokens-modal');
+  const btnClose = document.getElementById('btn-close-player-tokens-modal');
+  const btnCancel = document.getElementById('btn-cancel-player-tokens-modal');
+  const btnSpawnAll = document.getElementById('btn-spawn-all-players');
+  const listContainer = document.getElementById('spawn-players-list');
+
+  if (!modal) return;
+
+  const renderPlayerList = () => {
+    if (!listContainer) return;
+    listContainer.innerHTML = '';
+
+    const allChars = [...charactersCache.values()].filter((c) => c && c.created);
+
+    if (allChars.length === 0) {
+      listContainer.innerHTML = `
+        <div class="text-center py-6 text-stone-500 font-crimson italic text-sm">
+          Aucun personnage créé par les joueurs pour le moment dans cette salle.
+        </div>
+      `;
+      return;
+    }
+
+    allChars.forEach((char) => {
+      const isOnMap = (tacticalMapState.tokens || []).some(
+        (t) => t.type === 'player' && (t.slot === char.slot || (t.name && t.name.toLowerCase() === char.name.toLowerCase()))
+      );
+
+      const row = document.createElement('div');
+      row.className = 'flex items-center justify-between p-3 bg-stone-950 rounded-xl border border-stone-800 hover:border-amber-900/60 transition gap-2';
+
+      const icon = char.classIcon || char.raceIcon || '👤';
+      const color = char.color || '#ef4444';
+
+      row.innerHTML = `
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-full flex items-center justify-center text-lg border-2 shadow flex-shrink-0" style="background-color: ${color}; border-color: rgba(255,255,255,0.4);">
+            ${icon}
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h4 class="font-cinzel text-xs font-bold text-amber-300 leading-tight">${char.name}</h4>
+              <span class="text-[10px] px-1.5 py-0.5 rounded font-mono font-semibold ${isOnMap ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'bg-stone-900 text-stone-400 border border-stone-700'}">
+                ${isOnMap ? '✓ Sur la carte' : 'Non placé'}
+              </span>
+            </div>
+            <div class="text-[11px] font-crimson text-stone-400">
+              ${char.race || 'Race'} • ${char.class || 'Classe'} (Slot #${char.slot})
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <button
+            type="button"
+            data-slot="${char.slot}"
+            class="btn-spawn-single px-3 py-1.5 bg-gradient-to-r from-blue-700 to-indigo-700 hover:from-blue-600 hover:to-indigo-600 text-white font-cinzel text-xs font-bold rounded-lg shadow border border-blue-400/60 transition cursor-pointer flex items-center gap-1 active:scale-95"
+            title="${isOnMap ? 'Téléporter au centre de l\'écran' : 'Faire apparaître sur la carte'}"
+          >
+            <span>${isOnMap ? '📍' : '➕'}</span>
+            <span>${isOnMap ? 'Téléporter' : 'Invoquer'}</span>
+          </button>
+          ${isOnMap ? `
+            <button
+              type="button"
+              data-slot="${char.slot}"
+              class="btn-despawn-single px-2.5 py-1.5 bg-rose-950 hover:bg-rose-900 text-rose-300 font-cinzel text-xs rounded-lg border border-rose-800/80 transition cursor-pointer"
+              title="Retirer temporairement ce pion de la carte"
+            >
+              ✕
+            </button>
+          ` : ''}
+        </div>
+      `;
+
+      listContainer.appendChild(row);
+    });
+
+    // Attacher les écouteurs sur les boutons individuels
+    listContainer.querySelectorAll('.btn-spawn-single').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const slot = btn.getAttribute('data-slot');
+        if (slot === null || !CURRENT_ROOM || CURRENT_ROLE !== 'mj') return;
+
+        const rect = mapCanvas ? mapCanvas.getBoundingClientRect() : { width: 800, height: 600 };
+        const spawnX = Math.round((rect.width / 2 - mapCamera.x) / mapCamera.zoom);
+        const spawnY = Math.round((rect.height / 2 - mapCamera.y) / mapCamera.zoom);
+
+        socket.emit('map:spawn_player_token', {
+          roomId: CURRENT_ROOM,
+          slot: Number(slot),
+          x: spawnX,
+          y: spawnY,
+          role: CURRENT_ROLE
+        }, (res) => {
+          if (res?.success) {
+            renderPlayerList();
+            requestMapRender();
+          } else {
+            alert(`Erreur : ${res?.error || 'Échec de l\'invocation'}`);
+          }
+        });
+      });
+    });
+
+    listContainer.querySelectorAll('.btn-despawn-single').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const slot = Number(btn.getAttribute('data-slot'));
+        const token = (tacticalMapState.tokens || []).find((t) => t.type === 'player' && t.slot === slot);
+        if (!token || !CURRENT_ROOM || CURRENT_ROLE !== 'mj') return;
+
+        socket.emit('map:remove_token', {
+          roomId: CURRENT_ROOM,
+          tokenId: token.id,
+          role: CURRENT_ROLE
+        }, (res) => {
+          if (res?.success) {
+            tacticalMapState.tokens = tacticalMapState.tokens.filter((t) => t.id !== token.id);
+            renderPlayerList();
+            requestMapRender();
+          }
+        });
+      });
+    });
+  };
+
+  const openModal = () => {
+    modal.classList.remove('hidden');
+    renderPlayerList();
+  };
+
+  const closeModal = () => {
+    modal.classList.add('hidden');
+  };
+
+  if (btnOpen) btnOpen.addEventListener('click', openModal);
+  if (btnClose) btnClose.addEventListener('click', closeModal);
+  if (btnCancel) btnCancel.addEventListener('click', closeModal);
+
+  if (btnSpawnAll) {
+    btnSpawnAll.addEventListener('click', () => {
+      if (!CURRENT_ROOM || CURRENT_ROLE !== 'mj') return;
+
+      const rect = mapCanvas ? mapCanvas.getBoundingClientRect() : { width: 800, height: 600 };
+      const startX = Math.round((rect.width / 2 - mapCamera.x) / mapCamera.zoom) - 90;
+      const startY = Math.round((rect.height / 2 - mapCamera.y) / mapCamera.zoom);
+
+      socket.emit('map:spawn_all_players', {
+        roomId: CURRENT_ROOM,
+        startX,
+        startY,
+        role: CURRENT_ROLE
+      }, (res) => {
+        if (res?.success) {
+          closeModal();
+          requestMapRender();
+        } else {
+          alert(`Erreur : ${res?.error || 'Échec de l\'invocation'}`);
+        }
+      });
+    });
+  }
+}

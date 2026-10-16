@@ -3,6 +3,7 @@ const registerRoomHandlers = require('./roomHandler');
 const registerCharHandlers = require('./char.handler');
 const registerChatHandlers = require('./chat.handler');
 const registerInvHandlers = require('./inv.handler');
+const registerMapHandlers = require('./map.handler');
 
 /**
  * Initialise le serveur Socket.io et monte tous les gestionnaires modulaires
@@ -25,6 +26,8 @@ function initSocketServer(httpServer) {
     registerChatHandlers(io, socket);
     // Gestionnaire de l'inventaire
     registerInvHandlers(io, socket);
+    // Gestionnaire de la carte tactique
+    registerMapHandlers(io, socket);
 
     socket.on('error', (err) => {
       console.error(`[Socket.io] Erreur client ${socket.id} :`, err);

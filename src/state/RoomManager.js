@@ -24,6 +24,21 @@ class RoomManager {
   }
 
   /**
+   * Modèle de carte tactique par défaut
+   */
+  createDefaultMap() {
+    return {
+      backgroundUrl: null,
+      gridSize: 0,
+      snapToGrid: false,
+      fogEnabled: true,
+      tokens: [],
+      revealedAreas: [],
+      currentTurn: null
+    };
+  }
+
+  /**
    * Modèle de salle par défaut : au départ, aucun personnage tant que des joueurs n'ont pas rejoint
    */
   createDefaultRoom(roomId) {
@@ -33,6 +48,7 @@ class RoomManager {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       characters: [],
+      map: this.createDefaultMap(),
       isSaved: false
     };
   }
@@ -77,6 +93,15 @@ class RoomManager {
       for (const [id, room] of Object.entries(parsed)) {
         if (!room.characters || !Array.isArray(room.characters)) {
           room.characters = [];
+        }
+        if (!room.map || typeof room.map !== 'object') {
+          room.map = this.createDefaultMap();
+        } else {
+          if (!Array.isArray(room.map.tokens)) room.map.tokens = [];
+          if (!Array.isArray(room.map.revealedAreas)) room.map.revealedAreas = [];
+          if (typeof room.map.gridSize !== 'number') room.map.gridSize = 50;
+          if (typeof room.map.snapToGrid !== 'boolean') room.map.snapToGrid = true;
+          if (typeof room.map.fogEnabled !== 'boolean') room.map.fogEnabled = true;
         }
         room.isSaved = true;
         this.rooms.set(id, room);
@@ -209,6 +234,7 @@ class RoomManager {
     }
 
     room.updatedAt = new Date().toISOString();
+    this.syncPlayerTokens(roomId);
     this.triggerAutoSave();
     return existingChar;
   }
@@ -295,6 +321,7 @@ class RoomManager {
       room.characters.forEach((c, idx) => {
         c.slot = idx;
       });
+      this.syncPlayerTokens(roomId);
       room.updatedAt = new Date().toISOString();
       this.triggerAutoSave();
       return removedChar;
@@ -493,6 +520,309 @@ class RoomManager {
     this.triggerAutoSave();
 
     return { character: char, item: removed ? null : item, removed };
+  }
+
+  /**
+   * Synchronise les pions des joueurs avec les personnages enregistrés
+   * @param {string} roomId 
+   */
+  syncPlayerTokens(roomId) {
+    const room = this.getRoom(roomId);
+    if (!room) return [];
+    if (!room.map) room.map = this.createDefaultMap();
+
+    const currentChars = (room.characters || []).filter(c => c && c.created);
+    const existingTokens = room.map.tokens || [];
+
+    // Conserver les monstres
+    const monsterTokens = existingTokens.filter(t => t.type === 'monster');
+    const playerTokens = [];
+
+    existingTokens.filter(t => t.type === 'player').forEach((token) => {
+      const char = currentChars.find(c => c.slot === token.slot || (c.name && token.name && c.name.toLowerCase() === token.name.toLowerCase()));
+      if (char) {
+        token.name = char.name;
+        token.color = char.color || token.color;
+        token.icon = char.classIcon || char.raceIcon || token.icon;
+        token.slot = char.slot;
+        token.hp = char.hp;
+        token.maxHp = char.maxHp;
+        playerTokens.push(token);
+      } else {
+        playerTokens.push(token);
+      }
+    });
+
+    room.map.tokens = [...playerTokens, ...monsterTokens];
+    return room.map.tokens;
+  }
+
+  /**
+   * Récupère l'état complet de la carte pour une salle
+   * @param {string} roomId 
+   */
+  getMapState(roomId) {
+    const room = this.getRoom(roomId);
+    if (!room.map) room.map = this.createDefaultMap();
+    this.syncPlayerTokens(roomId);
+    return room.map;
+  }
+
+  /**
+   * Met à jour l'image de fond de la carte
+   * @param {string} roomId 
+   * @param {string|null} backgroundUrl 
+   */
+  updateMapBackground(roomId, backgroundUrl) {
+    const room = this.getRoom(roomId);
+    if (!room.map) room.map = this.createDefaultMap();
+    room.map.backgroundUrl = backgroundUrl;
+    room.updatedAt = new Date().toISOString();
+    this.triggerAutoSave();
+    return room.map.backgroundUrl;
+  }
+
+  /**
+   * Déplace un pion sur la carte
+   * @param {string} roomId 
+   * @param {string} tokenId 
+   * @param {number} x 
+   * @param {number} y 
+   */
+  moveToken(roomId, tokenId, x, y) {
+    const room = this.getRoom(roomId);
+    if (!room.map) room.map = this.createDefaultMap();
+    const token = room.map.tokens.find(t => t.id === tokenId);
+    if (!token) {
+      throw new Error(`Pion introuvable sur la carte (ID: ${tokenId})`);
+    }
+    token.x = Number(x);
+    token.y = Number(y);
+    room.updatedAt = new Date().toISOString();
+    this.triggerAutoSave();
+    return token;
+  }
+
+  /**
+   * Ajoute un pion (Monstre ou PNJ) sur la carte
+   * @param {string} roomId 
+   * @param {Object} tokenData 
+   */
+  addToken(roomId, tokenData) {
+    const room = this.getRoom(roomId);
+    if (!room.map) room.map = this.createDefaultMap();
+    const id = `token_monster_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    const newToken = {
+      id,
+      type: 'monster',
+      name: tokenData.name || 'Monstre',
+      icon: tokenData.icon || '👹',
+      color: tokenData.color || '#dc2626',
+      x: Number(tokenData.x) || 200,
+      y: Number(tokenData.y) || 200,
+      size: Number(tokenData.size) || 40,
+      hp: Number(tokenData.hp) || 10,
+      maxHp: Number(tokenData.maxHp) || 10
+    };
+    room.map.tokens.push(newToken);
+    room.updatedAt = new Date().toISOString();
+    this.triggerAutoSave();
+    return newToken;
+  }
+
+  /**
+   * Supprime un pion de la carte
+   * @param {string} roomId 
+   * @param {string} tokenId 
+   */
+  removeToken(roomId, tokenId) {
+    const room = this.getRoom(roomId);
+    if (!room.map) room.map = this.createDefaultMap();
+    const index = room.map.tokens.findIndex(t => t.id === tokenId);
+    if (index !== -1) {
+      const [removed] = room.map.tokens.splice(index, 1);
+      room.updatedAt = new Date().toISOString();
+      this.triggerAutoSave();
+      return removed;
+    }
+    return null;
+  }
+
+  /**
+   * Révèle une zone du brouillard de guerre
+   * @param {string} roomId 
+   * @param {Object} area { type: 'rect'|'circle', x, y, w, h, r }
+   */
+  revealFog(roomId, area) {
+    const room = this.getRoom(roomId);
+    if (!room.map) room.map = this.createDefaultMap();
+    if (!Array.isArray(room.map.revealedAreas)) room.map.revealedAreas = [];
+    const newArea = {
+      id: `fog_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      type: area.type || 'rect',
+      x: Math.round(Number(area.x)),
+      y: Math.round(Number(area.y)),
+      w: Math.round(Number(area.w || 0)),
+      h: Math.round(Number(area.h || 0)),
+      r: Math.round(Number(area.r || 0))
+    };
+    room.map.revealedAreas.push(newArea);
+    room.updatedAt = new Date().toISOString();
+    this.triggerAutoSave();
+    return newArea;
+  }
+
+  /**
+   * Réinitialise le brouillard de guerre (tout redevient obscur)
+   * @param {string} roomId 
+   */
+  resetFog(roomId) {
+    const room = this.getRoom(roomId);
+    if (!room.map) room.map = this.createDefaultMap();
+    room.map.revealedAreas = [];
+    room.updatedAt = new Date().toISOString();
+    this.triggerAutoSave();
+    return true;
+  }
+
+  /**
+   * Met à jour les réglages de la carte (grille, aimantation, activation du brouillard)
+   * @param {string} roomId 
+   * @param {Object} settings 
+   */
+  updateMapSettings(roomId, settings = {}) {
+    const room = this.getRoom(roomId);
+    if (!room.map) room.map = this.createDefaultMap();
+    if (typeof settings.gridSize === 'number') room.map.gridSize = settings.gridSize;
+    if (typeof settings.snapToGrid === 'boolean') room.map.snapToGrid = settings.snapToGrid;
+    if (typeof settings.fogEnabled === 'boolean') room.map.fogEnabled = settings.fogEnabled;
+    room.updatedAt = new Date().toISOString();
+    this.triggerAutoSave();
+    return room.map;
+  }
+
+  /**
+   * Fait spawn ou repositionne le jeton d'un joueur par le MJ
+   * @param {string} roomId 
+   * @param {number|string} slot 
+   * @param {number} x 
+   * @param {number} y 
+   */
+  spawnPlayerToken(roomId, slot, x = 200, y = 200) {
+    const room = this.getRoom(roomId);
+    if (!room.map) room.map = this.createDefaultMap();
+    const slotNum = Number(slot);
+    const char = (room.characters || []).find((c) => c && c.slot === slotNum);
+    if (!char) {
+      throw new Error(`Aucun personnage trouvé au slot #${slotNum}`);
+    }
+
+    const tokenId = `token_player_${char.slot}`;
+    let token = room.map.tokens.find((t) => t.id === tokenId || (t.type === 'player' && t.slot === char.slot));
+
+    if (token) {
+      token.x = Number(x);
+      token.y = Number(y);
+      token.name = char.name;
+      token.color = char.color || '#ef4444';
+      token.icon = char.classIcon || char.raceIcon || '👤';
+      token.hp = char.hp;
+      token.maxHp = char.maxHp;
+    } else {
+      token = {
+        id: tokenId,
+        type: 'player',
+        slot: char.slot,
+        name: char.name,
+        color: char.color || '#ef4444',
+        icon: char.classIcon || char.raceIcon || '👤',
+        x: Number(x),
+        y: Number(y),
+        size: 40,
+        hp: char.hp,
+        maxHp: char.maxHp
+      };
+      room.map.tokens.push(token);
+    }
+
+    room.updatedAt = new Date().toISOString();
+    this.triggerAutoSave();
+    return token;
+  }
+
+  /**
+   * Invoque tous les héros connectés/forgés sur la carte
+   * @param {string} roomId 
+   * @param {number} startX 
+   * @param {number} startY 
+   */
+  spawnAllPlayerTokens(roomId, startX = 200, startY = 200) {
+    const room = this.getRoom(roomId);
+    if (!room.map) room.map = this.createDefaultMap();
+    const createdChars = (room.characters || []).filter((c) => c && c.created);
+    const spawned = [];
+
+    createdChars.forEach((char, idx) => {
+      const x = Number(startX) + idx * 60;
+      const y = Number(startY);
+      const token = this.spawnPlayerToken(roomId, char.slot, x, y);
+      spawned.push(token);
+    });
+
+    return spawned;
+  }
+
+  /**
+   * Définit le tour de jeu actif sur un joueur spécifique
+   * @param {string} roomId 
+   * @param {number|string} slot 
+   */
+  setTurn(roomId, slot) {
+    const room = this.getRoom(roomId);
+    if (!room.map) room.map = this.createDefaultMap();
+    const slotNum = Number(slot);
+    const char = (room.characters || []).find((c) => c && c.slot === slotNum);
+    if (!char) {
+      throw new Error(`Personnage introuvable pour le slot #${slotNum}`);
+    }
+
+    room.map.currentTurn = {
+      slot: char.slot,
+      name: char.name,
+      icon: char.classIcon || char.raceIcon || '👤',
+      color: char.color || '#ef4444',
+      timestamp: new Date().toISOString()
+    };
+
+    room.updatedAt = new Date().toISOString();
+    this.triggerAutoSave();
+    return room.map.currentTurn;
+  }
+
+  /**
+   * Passe au tour du joueur suivant de manière cyclique
+   * @param {string} roomId 
+   */
+  nextTurn(roomId) {
+    const room = this.getRoom(roomId);
+    if (!room.map) room.map = this.createDefaultMap();
+    const createdChars = (room.characters || []).filter((c) => c && c.created);
+
+    if (createdChars.length === 0) {
+      room.map.currentTurn = null;
+      return null;
+    }
+
+    let nextIndex = 0;
+    if (room.map.currentTurn && typeof room.map.currentTurn.slot === 'number') {
+      const currentIndex = createdChars.findIndex((c) => c.slot === room.map.currentTurn.slot);
+      if (currentIndex !== -1) {
+        nextIndex = (currentIndex + 1) % createdChars.length;
+      }
+    }
+
+    const nextChar = createdChars[nextIndex];
+    return this.setTurn(roomId, nextChar.slot);
   }
 
   /**
