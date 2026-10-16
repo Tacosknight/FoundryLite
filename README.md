@@ -1,4 +1,4 @@
-# ⚔️ VTT RPG - Table Ronde Virtuelle Old-School
+# ⚔️ FOUNDRY LITE - Table Ronde Virtuelle Old-School
 
 [![Node.js](https://img.shields.io/badge/Node.js-v18%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Express.js](https://img.shields.io/badge/Express-v5.3-000000?logo=express&logoColor=white)](https://expressjs.com/)
