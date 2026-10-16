@@ -149,6 +149,17 @@ class RoomService {
   getRoom(roomId) {
     return this.rooms.get(roomId) || null;
   }
+
+  /**
+   * Supprime une salle du service
+   */
+  async deleteRoom(roomId) {
+    const cleanId = (roomId || '').trim();
+    if (this.rooms.has(cleanId)) {
+      this.rooms.delete(cleanId);
+      await this.persist();
+    }
+  }
 }
 
 module.exports = new RoomService();

@@ -1,4 +1,4 @@
-# ⚔️ FOUNDRY LITE - Table Ronde Virtuelle Old-School
+# ⚔️ Foundry Lite - Table Ronde Virtuelle Old-School
 
 [![Node.js](https://img.shields.io/badge/Node.js-v18%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Express.js](https://img.shields.io/badge/Express-v5.3-000000?logo=express&logoColor=white)](https://expressjs.com/)
@@ -6,7 +6,7 @@
 [![TailwindCSS](https://img.shields.io/badge/TailwindCSS-v3-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 [![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](https://opensource.org/licenses/ISC)
 
-Une application web auto-hébergée de **Table Virtuelle de Jeu de Rôle (Virtual Tabletop / VTT)** pensée pour l'immersion *Dark Fantasy & Old-School RPG* (esprit *Baldur's Gate*, *D&D*). 
+**Foundry Lite** est une application web auto-hébergée de **Table Virtuelle de Jeu de Rôle (Virtual Tabletop / VTT)** pensée pour l'immersion *Dark Fantasy & Old-School RPG* (esprit *Baldur's Gate*, *D&D*). 
 
 Elle offre une synchronisation multijoueur en temps réel avec gestion stricte des rôles : **1 Maître du Jeu (MJ)** et jusqu'à **4 Joueurs**.
 
@@ -108,8 +108,8 @@ Elle offre une synchronisation multijoueur en temps réel avec gestion stricte d
 
 ### 1. Cloner le Répertoire
 ```bash
-git clone https://github.com/votre-compte/vtt-rpg.git
-cd vtt-rpg
+git clone https://github.com/Tacosknight/FoundryLite.git
+cd FoundryLite
 ```
 
 ### 2. Installer les Dépendances

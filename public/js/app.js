@@ -1,5 +1,5 @@
 /**
- * VTT RPG - Application Client SPA Temps Réel
+ * Foundry Lite - Application Client SPA Temps Réel
  */
 
 // Initialisation du client Socket.io (reste ouvert en permanence entre les vues SPA)
@@ -572,55 +572,85 @@ function initCharacterCreationUI() {
   updateAttributesUI();
 
   // Étape 6 : Initialisation de la sélection des Couleurs Héroïques (Le Jaune est interdit aux joueurs)
+  renderColorPalette();
+}
+
+/**
+ * Génère ou met à jour la palette de couleurs en verrouillant et grisant les couleurs déjà prises par d'autres héros
+ */
+function renderColorPalette() {
   const charColorsGrid = document.getElementById('char-colors-grid');
-  if (charColorsGrid) {
-    let colorHtml = '';
-    HERO_COLORS.forEach((colorObj) => {
-      const isSelected = colorObj.hex === currentSelectedColor;
-      colorHtml += `
-        <button
-          type="button"
-          data-color="${colorObj.hex}"
-          title="${escapeHtml(colorObj.name)}"
-          class="color-select-btn p-2.5 bg-stone-950 border-2 ${isSelected ? 'border-amber-400 ring-2 ring-amber-400/50' : 'border-stone-800 hover:border-stone-600'} flex flex-col items-center justify-center gap-1.5 transition cursor-pointer"
-        >
-          <span class="w-6 h-6 rounded-full shadow-inner border border-white/20 flex items-center justify-center text-xs" style="background-color: ${colorObj.hex};">
-            <span class="color-check ${isSelected ? '' : 'hidden'} text-white font-black text-[10px]">✓</span>
-          </span>
-          <span class="font-cinzel text-[10px] font-bold text-stone-300 text-center truncate max-w-[85px]">${escapeHtml(colorObj.name)}</span>
-        </button>
-      `;
-    });
-    charColorsGrid.innerHTML = colorHtml;
+  if (!charColorsGrid) return;
 
-    charColorsGrid.querySelectorAll('.color-select-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const hex = btn.getAttribute('data-color');
-        if (hex) {
-          currentSelectedColor = hex;
-          charColorsGrid.querySelectorAll('.color-select-btn').forEach((b) => {
-            b.classList.remove('border-amber-400', 'ring-2', 'ring-amber-400/50');
-            b.classList.add('border-stone-800');
-            const check = b.querySelector('.color-check');
-            if (check) check.classList.add('hidden');
-          });
+  // Récupérer la liste des couleurs déjà prises par d'autres héros dans la salle
+  const takenColors = new Set();
+  charactersCache.forEach((char) => {
+    // Si ce n'est pas le personnage du joueur connecté
+    if (char && char.color && char.socketId !== socket.id) {
+      takenColors.add(char.color.toLowerCase());
+    }
+  });
 
-          btn.classList.add('border-amber-400', 'ring-2', 'ring-amber-400/50');
-          btn.classList.remove('border-stone-800');
-          const check = btn.querySelector('.color-check');
-          if (check) check.classList.remove('hidden');
-
-          const colorObj = HERO_COLORS.find(c => c.hex === hex);
-          const colorLabel = document.getElementById('selected-color-label');
-          if (colorLabel && colorObj) {
-            colorLabel.textContent = colorObj.name;
-          }
-
-          updateCharacterPreview();
-        }
-      });
-    });
+  // Si la couleur actuellement sélectionnée est déjà prise par un autre joueur, basculer sur la première disponible
+  if (takenColors.has(currentSelectedColor.toLowerCase())) {
+    const firstAvailable = HERO_COLORS.find(c => !takenColors.has(c.hex.toLowerCase()));
+    if (firstAvailable) {
+      currentSelectedColor = firstAvailable.hex;
+      const colorLabel = document.getElementById('selected-color-label');
+      if (colorLabel) colorLabel.textContent = firstAvailable.name;
+    }
   }
+
+  let colorHtml = '';
+  HERO_COLORS.forEach((colorObj) => {
+    const isTaken = takenColors.has(colorObj.hex.toLowerCase());
+    const isSelected = colorObj.hex === currentSelectedColor;
+
+    let buttonClass = 'color-select-btn p-2.5 bg-stone-950 border-2 flex flex-col items-center justify-center gap-1.5 transition';
+    if (isTaken) {
+      buttonClass += ' opacity-40 cursor-not-allowed border-stone-900 filter grayscale';
+    } else if (isSelected) {
+      buttonClass += ' border-amber-400 ring-2 ring-amber-400/50 cursor-pointer';
+    } else {
+      buttonClass += ' border-stone-800 hover:border-stone-600 cursor-pointer';
+    }
+
+    colorHtml += `
+      <button
+        type="button"
+        data-color="${colorObj.hex}"
+        ${isTaken ? 'disabled aria-disabled="true"' : ''}
+        title="${escapeHtml(colorObj.name)}${isTaken ? ' (Déjà choisie par un autre joueur)' : ''}"
+        class="${buttonClass}"
+      >
+        <span class="w-6 h-6 rounded-full shadow-inner border border-white/20 flex items-center justify-center text-xs relative" style="background-color: ${colorObj.hex};">
+          <span class="color-check ${isSelected && !isTaken ? '' : 'hidden'} text-white font-black text-[10px]">✓</span>
+          ${isTaken ? '<span class="text-rose-500 font-bold text-xs absolute">✕</span>' : ''}
+        </span>
+        <span class="font-cinzel text-[10px] font-bold text-stone-300 text-center truncate max-w-[85px]">
+          ${escapeHtml(colorObj.name)}
+        </span>
+        ${isTaken ? '<span class="text-[8px] uppercase font-bold text-rose-400/90 font-mono tracking-tighter">Prise</span>' : ''}
+      </button>
+    `;
+  });
+  charColorsGrid.innerHTML = colorHtml;
+
+  charColorsGrid.querySelectorAll('.color-select-btn:not([disabled])').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const hex = btn.getAttribute('data-color');
+      if (hex) {
+        currentSelectedColor = hex;
+        renderColorPalette();
+        const colorObj = HERO_COLORS.find(c => c.hex === hex);
+        const colorLabel = document.getElementById('selected-color-label');
+        if (colorLabel && colorObj) {
+          colorLabel.textContent = colorObj.name;
+        }
+        updateCharacterPreview();
+      }
+    });
+  });
 }
 
 function updateCharacterPreview() {
@@ -825,6 +855,18 @@ function applyRolePermissions() {
     chatInput.placeholder = isMJ 
       ? 'Tapez un message ou /r 1d20+3...' 
       : 'Tapez un message pour vos compagnons et le MJ...';
+  }
+
+  // 5.1 Bouton Sauvegarder la Salle (Réservé au MJ connecté dans une salle)
+  const btnSaveRoom = document.getElementById('btn-save-room');
+  if (btnSaveRoom) {
+    if (isJoined && isMJ) {
+      btnSaveRoom.classList.remove('hidden');
+      btnSaveRoom.classList.add('flex');
+    } else {
+      btnSaveRoom.classList.remove('flex');
+      btnSaveRoom.classList.add('hidden');
+    }
   }
 
   // 6. Mise à jour de l'onglet et du mode de la Forge de Personnage (Création complète vs Renommer uniquement)
@@ -1200,6 +1242,9 @@ function updateCharactersGrid(characters = []) {
 
   // Mettre à jour les options de cible pour le MJ
   updateDiceTargetOptions(characters);
+
+  // Mettre à jour la palette de couleurs (grise les couleurs nouvellement choisies par d'autres joueurs)
+  renderColorPalette();
 
   // Mettre à jour le mode de la Forge de Personnage (Création complète vs Renommer uniquement)
   updateForgeModeUI();
@@ -1704,6 +1749,40 @@ socket.on('room:user_left', ({ user, characters }) => {
   }
 });
 
+// Événement déclenché lorsque le MJ quitte ou ferme la table
+socket.on('room:closed_by_mj', ({ message }) => {
+  alert(message || 'Le Maître du Jeu a quitté la table. Vous avez été déconnecté.');
+  // Réinitialiser l'état client et renvoyer à l'accueil
+  CURRENT_ROOM = null;
+  CURRENT_ROLE = null;
+  charactersCache.clear();
+  const currentRoomEl = document.getElementById('current-room');
+  if (currentRoomEl) currentRoomEl.textContent = 'Aucune';
+  applyRolePermissions();
+  setConnectionStatus(false);
+  switchView('home');
+});
+
+// Événement de confirmation de sauvegarde de la partie
+socket.on('room:saved', ({ roomId, timestamp }) => {
+  const timeStr = new Date(timestamp).toLocaleTimeString();
+  const btnSaveRoom = document.getElementById('btn-save-room');
+  if (btnSaveRoom) {
+    btnSaveRoom.innerHTML = '<span>✅</span><span>Sauvegardé !</span>';
+    setTimeout(() => {
+      btnSaveRoom.innerHTML = '<span>💾</span><span>Sauvegarder</span>';
+    }, 2500);
+  }
+  // Message de confirmation discret dans le chat si présent
+  appendChatMessage({
+    sender: 'Système',
+    text: `📜 La partie "${roomId}" a été sauvegardée par le MJ à ${timeStr}. Les fiches et inventaires sont conservés !`,
+    timestamp,
+    color: '#10b981',
+    isMJ: false
+  });
+});
+
 // Réception des messages de chat
 socket.on('chat:broadcast', appendChatMessage);
 
@@ -1773,6 +1852,26 @@ document.addEventListener('DOMContentLoaded', () => {
       if (targetTab) switchView(targetTab);
     });
   });
+
+  // 1.1 Bouton Sauvegarder la Table pour le MJ
+  const btnSaveRoom = document.getElementById('btn-save-room');
+  if (btnSaveRoom) {
+    btnSaveRoom.addEventListener('click', () => {
+      if (!CURRENT_ROOM || CURRENT_ROLE !== 'mj') return;
+      btnSaveRoom.innerHTML = '<span>⏳</span><span>Sauvegarde...</span>';
+      socket.emit('room:save', { roomId: CURRENT_ROOM }, (res) => {
+        if (res?.success) {
+          btnSaveRoom.innerHTML = '<span>✅</span><span>Sauvegardé !</span>';
+          setTimeout(() => {
+            btnSaveRoom.innerHTML = '<span>💾</span><span>Sauvegarder</span>';
+          }, 2500);
+        } else {
+          alert(`Erreur lors de la sauvegarde : ${res?.error || 'Inconnue'}`);
+          btnSaveRoom.innerHTML = '<span>💾</span><span>Sauvegarder</span>';
+        }
+      });
+    });
+  }
 
   // 2. Boutons +/- des jauges de personnages (Réservé au MJ)
   document.addEventListener('click', (event) => {
@@ -2061,9 +2160,13 @@ document.addEventListener('DOMContentLoaded', () => {
           applyRolePermissions();
           setConnectionStatus(true);
 
-          // Si c'est un joueur sans personnage déjà forgé, basculer vers la Forge de Personnage
-          const existingChar = res.character || (Array.isArray(res.characters) ? res.characters.find(c => c.socketId === socket.id) : null);
+          // Si c'est un joueur avec un personnage déjà forgé (partie sauvegardée), l'assigner
+          const existingChar = res.character || (Array.isArray(res.characters) ? res.characters.find(c => c.socketId === socket.id || (c.name && c.name.toLowerCase() === username.toLowerCase())) : null);
           const hasForgedChar = existingChar && existingChar.created;
+
+          if (hasForgedChar && charNameInput) {
+            charNameInput.value = existingChar.name;
+          }
 
           setTimeout(() => {
             if (CURRENT_ROLE === 'player' && !hasForgedChar) {

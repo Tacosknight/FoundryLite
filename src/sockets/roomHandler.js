@@ -50,9 +50,16 @@ function registerRoomHandlers(io, socket) {
         }
       }
 
-      // Récupérer le personnage existant du joueur s'il en a déjà un forgé
+      // Récupérer le personnage existant du joueur s'il en a déjà un forgé (par socketId ou par nom)
       const roomObj = roomManager.getRoom(cleanRoomId);
-      const playerCharacter = (roomObj.characters || []).find(c => c.socketId === socket.id) || null;
+      let playerCharacter = null;
+      if (roomObj && Array.isArray(roomObj.characters)) {
+        playerCharacter = roomObj.characters.find(c => c.socketId === socket.id || (c.name && c.name.toLowerCase() === cleanUsername.toLowerCase())) || null;
+        if (playerCharacter) {
+          playerCharacter.socketId = socket.id;
+          roomManager.triggerAutoSave();
+        }
+      }
 
       // Récupérer la liste à jour de tous les personnages de la salle
       const characters = roomManager.getCharacters(cleanRoomId);
@@ -61,7 +68,8 @@ function registerRoomHandlers(io, socket) {
       io.to(cleanRoomId).emit('room:user_joined', {
         user,
         room,
-        characters
+        characters,
+        isSaved: Boolean(roomObj?.isSaved)
       });
 
       // Émettre également l'événement de mise à jour des fiches pour actualiser l'affichage
@@ -77,7 +85,8 @@ function registerRoomHandlers(io, socket) {
           room,
           user,
           character: playerCharacter,
-          characters
+          characters,
+          isSaved: Boolean(roomObj?.isSaved)
         });
       }
     } catch (error) {
@@ -91,15 +100,81 @@ function registerRoomHandlers(io, socket) {
     }
   });
 
+  // Événement de sauvegarde manuelle par le Maître du Jeu (room:save)
+  socket.on('room:save', async (data, callback) => {
+    try {
+      const roomId = data?.roomId || socket.data?.roomId;
+      const isMJ = socket.data?.user?.role === 'mj';
+
+      if (!isMJ) {
+        throw new Error('Seul le Maître du Jeu a le privilège de sauvegarder la table.');
+      }
+
+      if (!roomId) {
+        throw new Error('Identifiant de salle manquant.');
+      }
+
+      const savedRoom = await roomManager.saveRoom(roomId);
+      io.to(roomId).emit('room:saved', {
+        roomId,
+        timestamp: new Date().toISOString()
+      });
+
+      console.log(`[Socket] 💾 Partie "${roomId}" officiellement sauvegardée par le MJ.`);
+
+      if (typeof callback === 'function') {
+        callback({ success: true, room: savedRoom });
+      }
+    } catch (err) {
+      console.error(`[Socket Error] Erreur room:save :`, err.message);
+      if (typeof callback === 'function') {
+        callback({ success: false, error: err.message });
+      }
+    }
+  });
+
   // Gestion de la déconnexion
   socket.on('disconnect', async () => {
     try {
       const result = await roomService.removeUser(socket.id);
       if (result) {
         const { roomId, user, room } = result;
-        console.log(`[Socket] ${user.username} a quitté la salle "${roomId}" (déconnexion)`);
+        console.log(`[Socket] ${user.username} (${user.role}) a quitté la salle "${roomId}"`);
 
-        // Retirer le personnage du joueur déconnecté
+        const roomObj = roomManager.getRoom(roomId);
+        const isSaved = Boolean(roomObj && roomObj.isSaved);
+
+        // Si le MJ quitte la partie
+        if (user.role === 'mj') {
+          console.log(`[Socket] 👑 Le MJ a quitté la salle "${roomId}". isSaved = ${isSaved}`);
+
+          // Informer et déconnecter tous les clients de la salle
+          io.to(roomId).emit('room:closed_by_mj', {
+            roomId,
+            message: isSaved 
+              ? 'Le Maître du Jeu a mis fin à la session. La partie est sauvegardée ! Vous pourrez la reprendre avec le même nom de héros.' 
+              : 'Le Maître du Jeu a quitté la partie sans sauvegarder. La salle et ses données ont été effacées.'
+          });
+
+          // Déconnecter tous les sockets connectés à cette salle
+          const socketsInRoom = await io.in(roomId).fetchSockets();
+          for (const s of socketsInRoom) {
+            if (s.id !== socket.id) {
+              s.leave(roomId);
+              s.data.roomId = null;
+            }
+          }
+
+          // Si la partie n'était PAS sauvegardée, détruire toutes ses données
+          if (!isSaved) {
+            await roomManager.deleteRoom(roomId);
+            await roomService.deleteRoom(roomId);
+            console.log(`[Socket] 🧹 Nettoyage complet : salle "${roomId}" effacée de la mémoire.`);
+          }
+          return;
+        }
+
+        // Si c'est un joueur qui se déconnecte :
         if (user.role === 'player') {
           roomManager.removePlayerCharacter(roomId, socket.id);
         }

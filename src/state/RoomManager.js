@@ -32,8 +32,36 @@ class RoomManager {
       password: null, // Mot de passe optionnel
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      characters: []
+      characters: [],
+      isSaved: false
     };
+  }
+
+  /**
+   * Supprime une salle en mémoire et sur le disque si non sauvegardée
+   */
+  async deleteRoom(roomId) {
+    const cleanId = (roomId || '').trim();
+    if (this.rooms.has(cleanId)) {
+      this.rooms.delete(cleanId);
+      await this.persist();
+      console.log(`[RoomManager] 🗑️ Salle "${cleanId}" supprimée et données nettoyées.`);
+    }
+  }
+
+  /**
+   * Marque une salle comme sauvegardée définitivement
+   */
+  async saveRoom(roomId) {
+    const room = this.getRoom(roomId);
+    if (room) {
+      room.isSaved = true;
+      room.updatedAt = new Date().toISOString();
+      await this.persist();
+      console.log(`[RoomManager] 💾 Salle "${roomId}" sauvegardée avec succès.`);
+      return room;
+    }
+    return null;
   }
 
   /**
@@ -50,6 +78,7 @@ class RoomManager {
         if (!room.characters || !Array.isArray(room.characters)) {
           room.characters = [];
         }
+        room.isSaved = true;
         this.rooms.set(id, room);
       }
     } catch (error) {
@@ -68,7 +97,6 @@ class RoomManager {
     const cleanId = (roomId || 'table-ronde').trim();
     if (!this.rooms.has(cleanId)) {
       this.rooms.set(cleanId, this.createDefaultRoom(cleanId));
-      this.triggerAutoSave();
     }
     return this.rooms.get(cleanId);
   }
@@ -116,10 +144,23 @@ class RoomManager {
       charColor = '#ef4444'; // Repli sur Cramoisi si tentative de choisir jaune
     }
 
-    let existingChar = room.characters.find(c => c.socketId === socketId);
+    // Sécurité couleur unique : vérifier si un autre héros de la salle utilise déjà cette couleur
+    const colorTakenByOther = room.characters.some(c => 
+      c.color && 
+      c.color.toLowerCase() === charColor.toLowerCase() && 
+      c.socketId !== socketId && 
+      (!c.name || c.name.toLowerCase() !== cleanName.toLowerCase())
+    );
+    if (colorTakenByOther) {
+      throw new Error(`Cette couleur est déjà portée par un autre compagnon de table. Veuillez en choisir une autre.`);
+    }
+
+    // Recherche si un personnage existe déjà par socketId ou par son nom (sauvegarde précédente)
+    let existingChar = room.characters.find(c => c.socketId === socketId || (c.name && c.name.toLowerCase() === cleanName.toLowerCase()));
 
     if (existingChar) {
-      // Mise à jour du personnage existant
+      // Mise à jour du personnage existant et association au socket actuel
+      existingChar.socketId = socketId;
       existingChar.name = cleanName;
       existingChar.title = charTitle;
       existingChar.color = charColor;
@@ -229,11 +270,23 @@ class RoomManager {
   }
 
   /**
-   * Supprime le personnage du joueur lors de sa déconnexion
+   * Supprime le personnage du joueur lors de sa déconnexion,
+   * SAUF si la salle est sauvegardée (auquel cas les données du héros sont conservées).
    */
   removePlayerCharacter(roomId, socketId) {
     const room = this.getRoom(roomId);
     if (!room || !Array.isArray(room.characters)) return null;
+
+    if (room.isSaved) {
+      // Dans une salle sauvegardée, on détache simplement le socketId pour permettre au joueur de revenir plus tard
+      const char = room.characters.find(c => c.socketId === socketId);
+      if (char) {
+        char.socketId = null;
+        this.triggerAutoSave();
+        return char;
+      }
+      return null;
+    }
 
     const charIndex = room.characters.findIndex(c => c.socketId === socketId);
     if (charIndex !== -1) {
@@ -457,15 +510,17 @@ class RoomManager {
   }
 
   /**
-   * Écriture atomique sur le disque dur
+   * Écriture atomique sur le disque dur uniquement pour les salles sauvegardées
    */
   async persist() {
     try {
       const dirPath = path.dirname(this.filePath);
       await fs.mkdir(dirPath, { recursive: true });
-      const obj = Object.fromEntries(this.rooms.entries());
+      // Seules les salles sauvegardées ou actives avec isSaved !== false sont conservées sur le disque
+      const savedEntries = Array.from(this.rooms.entries()).filter(([_, room]) => room.isSaved);
+      const obj = Object.fromEntries(savedEntries);
       await fs.writeFile(this.filePath, JSON.stringify(obj, null, 2), 'utf-8');
-      console.log(`[RoomManager] ✅ Sauvegarde automatique effectuée (${this.rooms.size} salles).`);
+      console.log(`[RoomManager] ✅ Fichier rooms.json synchronisé (${savedEntries.length} salles enregistrées).`);
     } catch (error) {
       console.error('[RoomManager Error] Échec de sauvegarde dans rooms.json :', error.message);
     }
