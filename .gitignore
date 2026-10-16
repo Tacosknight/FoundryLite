@@ -1,4 +1,6 @@
 node_modules/
-public/uploads/
+public/uploads/*
+!public/uploads/.gitkeep
 data/rooms.json
+!data/.gitkeep
 .env

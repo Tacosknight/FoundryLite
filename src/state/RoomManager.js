@@ -461,6 +461,8 @@ class RoomManager {
    */
   async persist() {
     try {
+      const dirPath = path.dirname(this.filePath);
+      await fs.mkdir(dirPath, { recursive: true });
       const obj = Object.fromEntries(this.rooms.entries());
       await fs.writeFile(this.filePath, JSON.stringify(obj, null, 2), 'utf-8');
       console.log(`[RoomManager] ✅ Sauvegarde automatique effectuée (${this.rooms.size} salles).`);
