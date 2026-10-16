@@ -1,0 +1,615 @@
+/* ==========================================================================
+   FOUNDRY LITE - DARK FANTASY cRPG STYLESHEET
+   Direction Artistique : Baldur's Gate 3 / Diablo II Resurrected / Grimoire
+   Interdit : Flat Design, SaaS moderne, coins ronds 2xl, polices sans-serif
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@500;600;700;900&family=Crimson+Pro:ital,wght@0,400;0,600;0,700;1,400;1,600&family=EB+Garamond:ital,wght@0,400;0,600;1,400&family=MedievalSharp&display=swap');
+
+:root {
+  /* Fonds : Fer forgé, ardoise et pierre volcanique */
+  --stone-darkest: #070605;
+  --stone-dark: #0c0a09;
+  --stone-mid: #1c1917;
+  --stone-light: #292524;
+  --stone-border: #44403c;
+
+  /* Textures & Parchemins : Vélin vieilli et cuir tanné */
+  --parchment-light: #f5ebe0;
+  --parchment-base: #e6ccb2;
+  --parchment-shadow: #b08968;
+  --parchment-ink: #23150c;
+  --leather-dark: #2d1810;
+  --leather-mid: #44281d;
+  --leather-light: #5e3a2b;
+
+  /* Ornements : Or terni, laiton ancien et cuivre oxydé */
+  --gold-tarnished: #d4af37;
+  --gold-bright: #fde047;
+  --gold-glow: rgba(212, 175, 55, 0.55);
+  --brass-ancient: #b45309;
+  --copper-oxidized: #78350f;
+  --bronze-dark: #451a03;
+
+  /* Accents magiques */
+  --ruby-blood: #991b1b;
+  --ruby-bright: #ef4444;
+  --ruby-glow: rgba(239, 68, 68, 0.6);
+  --ether-arcane: #0284c7;
+  --ether-bright: #38bdf8;
+  --ether-glow: rgba(56, 189, 248, 0.6);
+  --poison-green: #16a34a;
+  --poison-bright: #22c55e;
+  --necro-violet: #7e22ce;
+  --necro-bright: #a855f7;
+}
+
+/* ==========================================================================
+   TYPOGRAPHIE
+   ========================================================================== */
+.font-cinzel-dec {
+  font-family: 'Cinzel Decorative', Georgia, serif;
+}
+.font-cinzel {
+  font-family: 'Cinzel', Georgia, serif;
+}
+.font-crimson {
+  font-family: 'Crimson Pro', 'EB Garamond', Georgia, serif;
+}
+.font-garamond {
+  font-family: 'EB Garamond', 'Crimson Pro', Georgia, serif;
+}
+.font-medieval {
+  font-family: 'MedievalSharp', cursive, serif;
+}
+
+/* Base Body Texture */
+body {
+  background-color: var(--stone-dark);
+  background-image: 
+    radial-gradient(ellipse at 50% 0%, rgba(68, 40, 29, 0.25) 0%, transparent 70%),
+    radial-gradient(circle at 50% 50%, #1c1917 0%, #0c0a09 85%, #050505 100%);
+  color: #e7e5e4;
+  font-family: 'Crimson Pro', Georgia, serif;
+  letter-spacing: 0.015em;
+  min-height: 100vh;
+}
+
+/* Barres de défilement forgées */
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-track {
+  background: #0c0a09;
+  border-left: 1px solid #292524;
+}
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #573c24 0%, #2b1d12 100%);
+  border: 1px solid #78350f;
+  border-radius: 0;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #78350f 0%, #44281d 100%);
+  border-color: #d4af37;
+}
+
+/* ==========================================================================
+   CADRES ET PANNEAUX (FER FORGÉ & PIERRE SOMBRE)
+   ========================================================================== */
+.rpg-panel {
+  background: radial-gradient(circle at 50% 15%, #231f1d 0%, #171514 65%, #0c0a09 100%);
+  border: 2px double rgba(120, 53, 15, 0.85);
+  box-shadow: 
+    inset 0 0 25px rgba(0, 0, 0, 0.9),
+    0 12px 30px -5px rgba(0, 0, 0, 0.85),
+    0 0 1px 1px rgba(212, 175, 55, 0.15);
+  position: relative;
+}
+
+.rpg-panel-subtle {
+  background: linear-gradient(180deg, #191615 0%, #0f0d0c 100%);
+  border: 1px solid rgba(120, 53, 15, 0.6);
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.85), 0 6px 16px rgba(0, 0, 0, 0.7);
+}
+
+.rpg-panel-gold {
+  border: 2px double rgba(212, 175, 55, 0.7);
+  box-shadow: 
+    inset 0 0 30px rgba(0, 0, 0, 0.9),
+    0 0 15px rgba(212, 175, 55, 0.18),
+    0 10px 25px rgba(0, 0, 0, 0.9);
+}
+
+/* Coins décoratifs sculptés en ferronnerie médiévale */
+.rpg-corner-brackets {
+  position: relative;
+}
+.rpg-corner-brackets::before,
+.rpg-corner-brackets::after {
+  content: '';
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  pointer-events: none;
+  z-index: 6;
+}
+.rpg-corner-brackets::before {
+  top: 3px;
+  left: 3px;
+  border-top: 2px solid var(--gold-tarnished);
+  border-left: 2px solid var(--gold-tarnished);
+  box-shadow: -1px -1px 3px rgba(0,0,0,0.8);
+}
+.rpg-corner-brackets::after {
+  bottom: 3px;
+  right: 3px;
+  border-bottom: 2px solid var(--gold-tarnished);
+  border-right: 2px solid var(--gold-tarnished);
+  box-shadow: 1px 1px 3px rgba(0,0,0,0.8);
+}
+
+/* Variante avec 4 coins décorés */
+.rpg-corner-all {
+  position: relative;
+}
+.rpg-corner-all::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  right: 3px;
+  bottom: 3px;
+  pointer-events: none;
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  z-index: 4;
+}
+
+/* Séparateurs ornés */
+.rpg-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 0.75rem 0;
+  color: var(--gold-tarnished);
+}
+.rpg-divider::before,
+.rpg-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid rgba(120, 53, 15, 0.65);
+  box-shadow: 0 1px 0 rgba(212, 175, 55, 0.15);
+}
+.rpg-divider:not(:empty)::before {
+  margin-right: 0.75em;
+}
+.rpg-divider:not(:empty)::after {
+  margin-left: 0.75em;
+}
+
+/* ==========================================================================
+   TEXTURES DE PARCHEMIN (GRIMOIRE & REGISTRE D'AVENTURE)
+   ========================================================================== */
+.rpg-parchment {
+  background-color: var(--parchment-light);
+  background-image: 
+    radial-gradient(ellipse at 50% 50%, rgba(255, 255, 255, 0.45) 0%, rgba(68, 40, 29, 0.12) 100%),
+    linear-gradient(135deg, #f5ebe0 0%, #e6ccb2 50%, #ddbea9 100%);
+  color: var(--parchment-ink);
+  box-shadow: 
+    inset 0 0 35px rgba(115, 65, 20, 0.45),
+    inset 0 0 4px rgba(68, 40, 29, 0.5),
+    0 12px 28px -4px rgba(0, 0, 0, 0.85);
+  border: 1px solid rgba(92, 45, 12, 0.5);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.rpg-parchment-dark {
+  background-color: #2b1d12;
+  background-image: 
+    radial-gradient(ellipse at 50% 50%, rgba(255, 255, 255, 0.05) 0%, rgba(0, 0, 0, 0.4) 100%),
+    linear-gradient(180deg, #382417 0%, #20130b 100%);
+  color: #eeddc9;
+  border: 1px solid #573c24;
+  box-shadow: inset 0 0 25px rgba(0, 0, 0, 0.85);
+}
+
+/* ==========================================================================
+   BOUTONS FORGÉS, MÉTALLIQUES ET SCEAUX
+   ========================================================================== */
+.rpg-btn {
+  font-family: 'Cinzel', serif;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: linear-gradient(180deg, #2c2825 0%, #1e1b19 50%, #12100f 100%);
+  border: 1px solid #78350f;
+  color: var(--gold-tarnished);
+  padding: 0.5rem 1rem;
+  border-radius: 2px;
+  box-shadow: 
+    inset 0 1px 1px rgba(255, 255, 255, 0.12),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.7),
+    0 3px 6px rgba(0, 0, 0, 0.6);
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.rpg-btn:hover {
+  background: linear-gradient(180deg, #44281d 0%, #301b13 50%, #1f110c 100%);
+  border-color: var(--gold-tarnished);
+  color: #fef08a;
+  text-shadow: 0 0 8px rgba(212, 175, 55, 0.75);
+  box-shadow: 
+    inset 0 1px 2px rgba(255, 255, 255, 0.2),
+    0 4px 12px rgba(212, 175, 55, 0.25),
+    0 0 0 1px rgba(212, 175, 55, 0.4);
+}
+
+.rpg-btn:active {
+  transform: translateY(1px);
+  box-shadow: 
+    inset 0 2px 6px rgba(0, 0, 0, 0.9),
+    0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+/* Bouton Or / Laiton flamboyant */
+.rpg-btn-gold {
+  background: linear-gradient(180deg, #d4af37 0%, #b45309 65%, #78350f 100%);
+  border: 1px solid #fde047;
+  color: #0c0a09;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
+  box-shadow: 
+    inset 0 1px 2px rgba(255, 255, 255, 0.6),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.6),
+    0 4px 14px rgba(0, 0, 0, 0.7);
+}
+
+.rpg-btn-gold:hover {
+  background: linear-gradient(180deg, #fde047 0%, #d4af37 60%, #92400e 100%);
+  color: #000;
+  box-shadow: 
+    inset 0 1px 3px rgba(255, 255, 255, 0.8),
+    0 6px 20px rgba(212, 175, 55, 0.6),
+    0 0 12px rgba(253, 224, 71, 0.6);
+}
+
+.rpg-btn-gold:active {
+  transform: translateY(1px);
+  box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.8);
+}
+
+/* Bouton Sceau de Sang / Rubis */
+.rpg-btn-blood {
+  background: linear-gradient(180deg, #991b1b 0%, #7f1d1d 60%, #450a0a 100%);
+  border: 1px solid #ef4444;
+  color: #fee2e2;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+  box-shadow: inset 0 1px 2px rgba(254, 202, 202, 0.4), 0 4px 12px rgba(0, 0, 0, 0.7);
+}
+.rpg-btn-blood:hover {
+  background: linear-gradient(180deg, #b91c1c 0%, #991b1b 60%, #5c0f0f 100%);
+  color: #fff;
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.6), inset 0 1px 3px rgba(255, 255, 255, 0.6);
+}
+.rpg-btn-blood:active {
+  transform: translateY(1px);
+  box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.9);
+}
+
+/* Bouton Éther / Arcanique */
+.rpg-btn-ether {
+  background: linear-gradient(180deg, #0369a1 0%, #075985 60%, #082f49 100%);
+  border: 1px solid #38bdf8;
+  color: #e0f2fe;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+  box-shadow: inset 0 1px 2px rgba(186, 230, 253, 0.4), 0 4px 12px rgba(0, 0, 0, 0.7);
+}
+.rpg-btn-ether:hover {
+  background: linear-gradient(180deg, #0284c7 0%, #0369a1 60%, #0c4a6e 100%);
+  color: #fff;
+  box-shadow: 0 0 15px rgba(56, 189, 248, 0.6), inset 0 1px 3px rgba(255, 255, 255, 0.6);
+}
+.rpg-btn-ether:active {
+  transform: translateY(1px);
+  box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.9);
+}
+
+/* ==========================================================================
+   DÉS RUNES EN PIERRE TAILLÉE (d4, d6... d20, d100)
+   ========================================================================== */
+.rpg-runic-die {
+  font-family: 'Cinzel', serif;
+  font-weight: 700;
+  background: linear-gradient(145deg, #282421 0%, #191614 60%, #0d0c0b 100%);
+  border: 1.5px solid #573c24;
+  border-bottom-color: #2b1d12;
+  border-right-color: #2b1d12;
+  color: var(--gold-tarnished);
+  padding: 0.4rem 0.85rem;
+  min-width: 2.75rem;
+  border-radius: 2px;
+  box-shadow: 
+    inset 0 1px 1px rgba(255, 255, 255, 0.1),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.8),
+    0 4px 8px rgba(0, 0, 0, 0.7);
+  transition: all 0.18s ease-out;
+  cursor: pointer;
+  position: relative;
+  text-align: center;
+}
+
+.rpg-runic-die:hover {
+  background: linear-gradient(145deg, #3d281a 0%, #291b11 60%, #160e09 100%);
+  border-color: var(--gold-tarnished);
+  color: #fef08a;
+  text-shadow: 0 0 10px rgba(253, 224, 71, 0.9), 0 0 2px var(--gold-tarnished);
+  box-shadow: 
+    0 0 14px rgba(212, 175, 55, 0.45),
+    inset 0 1px 2px rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.rpg-runic-die:active {
+  transform: translateY(1px) scale(0.97);
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.9);
+}
+
+/* Dé 20 runique doré */
+.rpg-runic-die-d20 {
+  background: linear-gradient(145deg, #451a03 0%, #2c1202 60%, #170901 100%);
+  border-color: #d4af37;
+  color: #fde047;
+  box-shadow: 
+    0 0 10px rgba(212, 175, 55, 0.3),
+    inset 0 1px 2px rgba(254, 240, 138, 0.3);
+}
+.rpg-runic-die-d20:hover {
+  background: linear-gradient(145deg, #78350f 0%, #451a03 60%, #291002 100%);
+  border-color: #fef08a;
+  color: #ffffff;
+  box-shadow: 0 0 22px rgba(253, 224, 71, 0.8), inset 0 1px 3px rgba(255, 255, 255, 0.6);
+}
+
+/* ==========================================================================
+   JONCTIONS & FIOLES DE SANG ET D'ÉTHER (VITALS GAUGES)
+   ========================================================================== */
+.rpg-vial-tube {
+  background: #060505;
+  border: 1.5px solid #44281d;
+  border-radius: 3px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 
+    inset 0 2px 4px rgba(0, 0, 0, 0.95),
+    inset 0 -1px 2px rgba(255, 255, 255, 0.08),
+    0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+/* Reflet de verre sur la fiole */
+.rpg-vial-tube::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 45%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.03) 70%, transparent 100%);
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* Liquide de sang épais */
+.vial-blood {
+  background: linear-gradient(180deg, #ef4444 0%, #b91c1c 45%, #7f1d1d 80%, #450a0a 100%);
+  box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.6), 0 0 10px rgba(239, 68, 68, 0.4);
+}
+
+.vial-blood-critical {
+  background: linear-gradient(180deg, #f87171 0%, #dc2626 45%, #991b1b 100%);
+  animation: pulseGlowBlood 1s infinite alternate;
+}
+
+/* Liquide d'éther arcanique */
+.vial-ether {
+  background: linear-gradient(180deg, #38bdf8 0%, #0284c7 45%, #0369a1 80%, #082f49 100%);
+  box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.6), 0 0 10px rgba(56, 189, 248, 0.4);
+}
+
+/* ==========================================================================
+   ANIMATIONS MAGIQUES & MICRO-INTERACTIONS
+   ========================================================================== */
+
+/* Shimmer : Vague d'éther traversant les jauges */
+@keyframes shimmer {
+  0% { transform: translateX(-150%); }
+  50% { transform: translateX(50%); }
+  100% { transform: translateX(250%); }
+}
+
+.shimmer-active {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer-active::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.28) 50%, transparent 100%);
+  transform: translateX(-150%);
+  animation: shimmer 3.5s infinite linear;
+  pointer-events: none;
+  z-index: 4;
+}
+
+/* Tour de Jeu Actif : Lueur arcanique dorée pulsante */
+@keyframes arcaneGoldenPulse {
+  0%, 100% {
+    box-shadow: 
+      0 0 14px rgba(212, 175, 55, 0.4),
+      inset 0 0 20px rgba(0, 0, 0, 0.85);
+    border-color: #d4af37 !important;
+  }
+  50% {
+    box-shadow: 
+      0 0 30px rgba(212, 175, 55, 0.85),
+      0 0 10px rgba(245, 158, 11, 0.9),
+      inset 0 0 25px rgba(212, 175, 55, 0.2);
+    border-color: #fde047 !important;
+  }
+}
+
+.active-turn-card {
+  animation: arcaneGoldenPulse 2.4s infinite ease-in-out !important;
+  border-color: #d4af37 !important;
+  position: relative;
+}
+
+.active-turn-badge {
+  background: linear-gradient(180deg, #d4af37 0%, #b45309 100%);
+  color: #0c0a09;
+  font-family: 'Cinzel', serif;
+  font-weight: 900;
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.6);
+}
+
+/* Feedback Dé : Réussite critique (20 naturel) -> Flash doré + secousse subtile */
+@keyframes screenShakeSubtle {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  15% { transform: translate(-3px, 2px) rotate(-0.5deg); }
+  30% { transform: translate(3px, -2px) rotate(0.5deg); }
+  45% { transform: translate(-2px, -2px) rotate(-0.25deg); }
+  60% { transform: translate(2px, 2px) rotate(0.25deg); }
+  75% { transform: translate(-1px, 1px) rotate(0deg); }
+  90% { transform: translate(1px, -1px) rotate(0deg); }
+}
+
+.shake-subtle-active {
+  animation: screenShakeSubtle 0.65s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+@keyframes critFlashGoldAnim {
+  0% { opacity: 0; transform: scale(0.9); }
+  25% { opacity: 0.95; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.08); }
+}
+
+.crit-flash-gold {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: radial-gradient(circle at center, rgba(254, 240, 138, 0.75) 0%, rgba(212, 175, 55, 0.45) 45%, transparent 75%);
+  animation: critFlashGoldAnim 0.85s ease-out forwards;
+}
+
+/* Feedback Dé : Échec critique (1 naturel) -> Pulsation rouge sang sinistre + fumée */
+@keyframes fumbleBloodPulseAnim {
+  0%, 100% {
+    box-shadow: inset 0 0 80px rgba(153, 27, 27, 0.9), 0 0 40px rgba(153, 27, 27, 0.85);
+  }
+  50% {
+    box-shadow: inset 0 0 150px rgba(185, 28, 28, 1), 0 0 75px rgba(220, 38, 38, 0.95);
+  }
+}
+
+.fumble-blood-active {
+  animation: fumbleBloodPulseAnim 1.2s infinite ease-in-out;
+}
+
+.fumble-smoke-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+  background: radial-gradient(circle at center, transparent 30%, rgba(45, 10, 10, 0.85) 75%, rgba(15, 0, 0, 0.96) 100%);
+  animation: critFlashGoldAnim 1.4s ease-out forwards;
+}
+
+@keyframes pulseGlowBlood {
+  0% { filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.6)); }
+  100% { filter: drop-shadow(0 0 12px rgba(239, 68, 68, 1)); }
+}
+
+/* ==========================================================================
+   CARTE TACTIQUE : CADRE EN BOIS SCULPTÉ & OROGENÈSE
+   ========================================================================== */
+.rpg-canvas-frame {
+  border: 6px solid #2d1810;
+  outline: 2px solid #78350f;
+  box-shadow: 
+    inset 0 0 30px rgba(0, 0, 0, 0.95),
+    0 15px 35px rgba(0, 0, 0, 0.9),
+    0 0 0 1px #d4af37;
+  position: relative;
+}
+
+/* Trousse d'alchimiste / bandeau d'outils runiques du MJ */
+.rpg-artificer-rack {
+  background: linear-gradient(180deg, #1f1b18 0%, #141210 50%, #0d0c0a 100%);
+  border: 2px double #78350f;
+  box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.9), 0 6px 18px rgba(0, 0, 0, 0.7);
+}
+
+/* HUD Info-bulle en parchemin au survol d'un pion */
+.rpg-token-tooltip {
+  background-color: var(--parchment-light);
+  background-image: 
+    radial-gradient(ellipse at 50% 50%, rgba(255, 255, 255, 0.5) 0%, rgba(120, 53, 15, 0.12) 100%),
+    linear-gradient(180deg, #f5ebe0 0%, #e6ccb2 100%);
+  color: var(--parchment-ink);
+  border: 1.5px solid #78350f;
+  box-shadow: 
+    inset 0 0 15px rgba(115, 65, 20, 0.35),
+    0 8px 24px rgba(0, 0, 0, 0.85);
+  font-family: 'Crimson Pro', Georgia, serif;
+}
+
+/* ==========================================================================
+   CHRONIQUE & REGISTRE DE TAVERNE (CHAT & DÉS)
+   ========================================================================== */
+.rpg-chronicle-header {
+  background: linear-gradient(180deg, #2b1d12 0%, #1a110a 100%);
+  border-bottom: 2px solid #78350f;
+  color: var(--gold-tarnished);
+}
+
+.rpg-chat-msg {
+  background: linear-gradient(180deg, #191614 0%, #12100e 100%);
+  border: 1px solid rgba(120, 53, 15, 0.5);
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.8);
+  transition: border-color 0.15s ease-out;
+}
+.rpg-chat-msg:hover {
+  border-color: var(--gold-tarnished);
+}
+
+.rpg-chat-msg-gm {
+  background: linear-gradient(180deg, #2e1a12 0%, #1e110b 100%);
+  border: 1px solid rgba(212, 175, 55, 0.6);
+  box-shadow: inset 0 0 14px rgba(0, 0, 0, 0.85), 0 0 8px rgba(212, 175, 55, 0.15);
+}
+
+/* Carte de Tirage de Dé dans l'Historique */
+.rpg-dice-card {
+  background: linear-gradient(180deg, #1c1815 0%, #110f0e 100%);
+  border: 1px solid rgba(120, 53, 15, 0.65);
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.8);
+}
+.rpg-dice-card-crit-success {
+  background: linear-gradient(180deg, #132e1b 0%, #0b1a0f 100%);
+  border: 2px solid #10b981;
+  box-shadow: 0 0 18px rgba(16, 185, 129, 0.35), inset 0 0 15px rgba(0, 0, 0, 0.8);
+}
+.rpg-dice-card-crit-fail {
+  background: linear-gradient(180deg, #381212 0%, #1f0808 100%);
+  border: 2px solid #dc2626;
+  box-shadow: 0 0 18px rgba(220, 38, 38, 0.35), inset 0 0 15px rgba(0, 0, 0, 0.8);
+}

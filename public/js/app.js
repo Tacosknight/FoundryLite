@@ -1153,83 +1153,96 @@ function createCharacterCardHTML(char) {
 
   const charColor = char.color || '#ef4444';
 
+  const isCurrentTurn = Boolean(
+    tacticalMapState.currentTurn && (
+      (typeof tacticalMapState.currentTurn.slot === 'number' && Number(char.slot) === Number(tacticalMapState.currentTurn.slot)) ||
+      (char.name && tacticalMapState.currentTurn.name && char.name.toLowerCase() === tacticalMapState.currentTurn.name.toLowerCase())
+    )
+  );
+
   return `
-    <article data-slot="${char.slot}" class="stone-card border-2 rounded-none p-5 shadow-2xl flex flex-col justify-between hover:brightness-105 transition duration-200" style="border-color: ${charColor}88; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.7), inset 0 0 25px rgba(0,0,0,0.8), 0 0 15px ${charColor}20;">
+    <article data-slot="${char.slot}" class="stone-card rpg-panel rpg-corner-brackets ${isCurrentTurn ? 'active-turn-card' : ''} p-5 shadow-2xl flex flex-col justify-between hover:brightness-105 transition duration-200" style="border-color: ${charColor}aa; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.85), inset 0 0 25px rgba(0,0,0,0.9), 0 0 15px ${charColor}25;">
       <div>
-        <div class="flex items-center justify-between mb-4 border-b border-amber-950/80 pb-2.5">
+        <div class="flex items-center justify-between mb-4 border-b-2 border-double border-[#78350f]/80 pb-3">
           <div class="flex items-center gap-3">
-            <span class="w-9 h-9 rounded-none bg-stone-950 font-cinzel text-lg font-bold flex items-center justify-center border-2 shadow-inner" style="border-color: ${charColor}; color: ${charColor};">
+            <span class="w-10 h-10 bg-[#080706] font-cinzel text-lg font-bold flex items-center justify-center border-2 shadow-inner" style="border-color: ${charColor}; color: ${charColor};">
               ${char.raceIcon || '🛡️'}
             </span>
             <div>
-              <h3 class="char-name font-cinzel font-bold text-base tracking-wide flex items-center gap-2" style="color: ${charColor};">
+              <h3 class="char-name font-cinzel-dec font-bold text-base tracking-wide flex items-center gap-2" style="color: ${charColor};">
                 <span>${escapeHtml(char.name)}</span>
                 <span class="w-2.5 h-2.5 rounded-full inline-block shadow-sm" style="background-color: ${charColor};" title="Couleur de sceau"></span>
               </h3>
-              ${char.title ? `<div class="font-cinzel text-[11px] font-bold text-amber-300 italic tracking-wider">${escapeHtml(char.title)}</div>` : ''}
-              <span class="char-class font-crimson text-xs italic font-medium text-amber-400/90">
+              ${char.title ? `<div class="font-cinzel text-[11px] font-bold text-[#fde047] italic tracking-wider">${escapeHtml(char.title)}</div>` : ''}
+              <span class="char-class font-crimson text-xs italic font-medium text-amber-300/90">
                 ${escapeHtml(char.race ? `${char.race} ` : '')}${escapeHtml(char.class)}${char.role ? ` — ${escapeHtml(char.role)}` : ''}
               </span>
             </div>
           </div>
           <div class="flex items-center gap-2">
-            <button type="button" data-action="open-edit-modal" data-slot="${char.slot}" title="Modifier le personnage (MJ)" class="p-1.5 rounded-none bg-stone-900 hover:bg-amber-950 text-stone-400 hover:text-amber-300 border border-amber-900/60 transition cursor-pointer text-xs" style="display: ${isMJ ? '' : 'none'};">
+            <button type="button" data-action="open-edit-modal" data-slot="${char.slot}" title="Modifier le personnage (MJ)" class="rpg-btn p-1.5 text-xs text-stone-400 hover:text-[#fde047] cursor-pointer" style="display: ${isMJ ? '' : 'none'};">
               ✏️
             </button>
-            <span class="text-[10px] font-cinzel font-bold uppercase px-2.5 py-1 rounded-none bg-stone-950 border shadow-inner" style="border-color: ${charColor}80; color: ${charColor};">Aventurier ${Number(char.slot) + 1}</span>
+            <span class="text-[10px] font-cinzel font-bold uppercase px-2.5 py-1 bg-[#080706] border shadow-inner" style="border-color: ${charColor}80; color: ${charColor};">Aventurier ${Number(char.slot) + 1}</span>
           </div>
         </div>
 
         ${char.passive ? `
-          <div class="mb-2.5 px-3 py-1.5 bg-amber-950/20 border border-amber-900/40 rounded-none flex items-center gap-2 text-[11px] text-amber-200/90 shadow-inner">
+          <div class="mb-2.5 px-3 py-1.5 rpg-parchment-dark border border-[#573c24] flex items-center gap-2 text-[11px] text-amber-200/90 shadow-inner">
             <span class="text-xs">⚜️</span>
             <span class="font-cinzel font-bold text-amber-300">${escapeHtml(char.passive.name || '')}</span>
           </div>
         ` : ''}
 
         ${char.attributes ? `
-          <div class="mb-3 px-2.5 py-1.5 bg-stone-950/80 border border-stone-800 grid grid-cols-4 gap-1 text-center font-mono text-[11px]">
-            <div class="border-r border-stone-800"><span class="text-stone-400 block text-[9px] font-cinzel font-bold">FOR</span><span class="font-bold text-red-300">${char.attributes.force ?? 8}</span></div>
-            <div class="border-r border-stone-800"><span class="text-stone-400 block text-[9px] font-cinzel font-bold">DEX</span><span class="font-bold text-emerald-300">${char.attributes.dexterite ?? 8}</span></div>
-            <div class="border-r border-stone-800"><span class="text-stone-400 block text-[9px] font-cinzel font-bold">INT</span><span class="font-bold text-sky-300">${char.attributes.intelligence ?? 8}</span></div>
+          <div class="mb-3 px-2.5 py-1.5 bg-[#080706] border border-[#44281d] grid grid-cols-4 gap-1 text-center font-mono text-[11px] shadow-inner">
+            <div class="border-r border-[#292524]"><span class="text-stone-400 block text-[9px] font-cinzel font-bold">FOR</span><span class="font-bold text-red-300">${char.attributes.force ?? 8}</span></div>
+            <div class="border-r border-[#292524]"><span class="text-stone-400 block text-[9px] font-cinzel font-bold">DEX</span><span class="font-bold text-emerald-300">${char.attributes.dexterite ?? 8}</span></div>
+            <div class="border-r border-[#292524]"><span class="text-stone-400 block text-[9px] font-cinzel font-bold">INT</span><span class="font-bold text-sky-300">${char.attributes.intelligence ?? 8}</span></div>
             <div><span class="text-stone-400 block text-[9px] font-cinzel font-bold">CHA</span><span class="font-bold text-purple-300">${char.attributes.charisme ?? 8}</span></div>
           </div>
         ` : ''}
 
-        <!-- Jauge PV -->
+        <!-- Jauge PV (Fiole de Sang Épaisse) -->
         <div class="space-y-1.5 mb-5">
           <div class="flex justify-between text-xs font-medium">
-            <span class="text-rose-400 font-semibold font-cinzel flex items-center gap-1">❤️ Points de Vie</span>
+            <span class="text-rose-400 font-semibold font-cinzel flex items-center gap-1.5">
+              <span>❤️</span>
+              <span>Points de Vie</span>
+            </span>
             <span class="hp-text font-mono text-stone-200 font-bold">${char.hp} / ${char.maxHp}</span>
           </div>
-          <div class="w-full bg-stone-950 h-3.5 rounded-none overflow-hidden border border-amber-950/80 p-0.5">
-            <div class="hp-bar h-full transition-all duration-300 ease-out ${hpPercent <= 25 ? 'bg-gradient-to-r from-rose-800 to-rose-600 animate-pulse' : 'bg-gradient-to-r from-rose-700 to-amber-600'}" style="width: ${hpPercent}%;"></div>
+          <div class="w-full rpg-vial-tube h-4 p-0.5">
+            <div class="hp-bar vial-blood ${hpPercent <= 25 ? 'vial-blood-critical' : ''} h-full shimmer-active transition-all duration-300 ease-out" style="width: ${hpPercent}%;"></div>
           </div>
           <div class="flex items-center justify-end gap-1.5 pt-1">
-            <button data-action="vital-change" data-slot="${char.slot}" data-type="hp" data-delta="-5" class="px-2.5 py-1 text-xs font-bold rounded-none bg-rose-950 hover:bg-rose-900 text-rose-300 border border-rose-800/60 transition cursor-pointer" style="display: ${isMJ ? '' : 'none'};">-5</button>
-            <button data-action="vital-change" data-slot="${char.slot}" data-type="hp" data-delta="-1" class="px-3 py-1 text-xs font-bold rounded-none bg-rose-950 hover:bg-rose-900 text-rose-300 border border-rose-800/60 transition cursor-pointer" style="display: ${isMJ ? '' : 'none'};">-1</button>
-            <button data-action="vital-change" data-slot="${char.slot}" data-type="hp" data-delta="1" class="px-3 py-1 text-xs font-bold rounded-none bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-800/60 transition cursor-pointer" style="display: ${isMJ ? '' : 'none'};">+1</button>
-            <button data-action="vital-change" data-slot="${char.slot}" data-type="hp" data-delta="5" class="px-2.5 py-1 text-xs font-bold rounded-none bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-800/60 transition cursor-pointer" style="display: ${isMJ ? '' : 'none'};">+5</button>
+            <button data-action="vital-change" data-slot="${char.slot}" data-type="hp" data-delta="-5" class="rpg-btn rpg-btn-blood px-2 py-0.5 text-xs font-bold" style="display: ${isMJ ? '' : 'none'};">-5</button>
+            <button data-action="vital-change" data-slot="${char.slot}" data-type="hp" data-delta="-1" class="rpg-btn rpg-btn-blood px-2.5 py-0.5 text-xs font-bold" style="display: ${isMJ ? '' : 'none'};">-1</button>
+            <button data-action="vital-change" data-slot="${char.slot}" data-type="hp" data-delta="1" class="rpg-btn rpg-btn-blood px-2.5 py-0.5 text-xs font-bold" style="display: ${isMJ ? '' : 'none'};">+1</button>
+            <button data-action="vital-change" data-slot="${char.slot}" data-type="hp" data-delta="5" class="rpg-btn rpg-btn-blood px-2 py-0.5 text-xs font-bold" style="display: ${isMJ ? '' : 'none'};">+5</button>
           </div>
         </div>
 
-        <!-- Jauge Énergie -->
+        <!-- Jauge Énergie (Fiole d'Éther Arcanique) -->
         <div class="space-y-1.5">
           <div class="flex justify-between text-xs font-medium">
-            <span class="text-sky-400 font-semibold font-cinzel flex items-center gap-1">⚡ Énergie / Mana</span>
+            <span class="text-sky-400 font-semibold font-cinzel flex items-center gap-1.5">
+              <span>⚡</span>
+              <span>Énergie / Mana</span>
+            </span>
             <span class="energy-text font-mono text-stone-200 font-bold">${char.energy} / ${char.maxEnergy}</span>
           </div>
-          <div class="w-full bg-stone-950 h-3.5 rounded-none overflow-hidden border border-amber-950/80 p-0.5">
-            <div class="energy-bar h-full transition-all duration-300 ease-out bg-gradient-to-r from-sky-700 to-indigo-500" style="width: ${energyPercent}%;"></div>
+          <div class="w-full rpg-vial-tube h-4 p-0.5">
+            <div class="energy-bar vial-ether h-full shimmer-active transition-all duration-300 ease-out" style="width: ${energyPercent}%;"></div>
           </div>
           <div class="flex items-center justify-end gap-1.5 pt-1">
-            <button data-action="vital-change" data-slot="${char.slot}" data-type="energy" data-delta="-1" class="px-3 py-1 text-xs font-bold rounded-none bg-sky-950 hover:bg-sky-900 text-sky-300 border border-sky-800/60 transition cursor-pointer" style="display: ${isMJ ? '' : 'none'};">-1</button>
-            <button data-action="vital-change" data-slot="${char.slot}" data-type="energy" data-delta="1" class="px-3 py-1 text-xs font-bold rounded-none bg-indigo-950 hover:bg-indigo-900 text-indigo-300 border border-indigo-800/60 transition cursor-pointer" style="display: ${isMJ ? '' : 'none'};">+1</button>
+            <button data-action="vital-change" data-slot="${char.slot}" data-type="energy" data-delta="-1" class="rpg-btn rpg-btn-ether px-2.5 py-0.5 text-xs font-bold" style="display: ${isMJ ? '' : 'none'};">-1</button>
+            <button data-action="vital-change" data-slot="${char.slot}" data-type="energy" data-delta="1" class="rpg-btn rpg-btn-ether px-2.5 py-0.5 text-xs font-bold" style="display: ${isMJ ? '' : 'none'};">+1</button>
           </div>
         </div>
 
         <!-- Section Inventaire du Héros -->
-        <div class="mt-4 pt-3 border-t border-amber-950/70 space-y-2">
+        <div class="mt-4 pt-3 border-t border-[#78350f]/60 space-y-2">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-1.5">
               <span class="text-sm">🎒</span>
@@ -1241,7 +1254,7 @@ function createCharacterCardHTML(char) {
               type="button"
               data-action="open-add-item-modal"
               data-slot="${char.slot}"
-              class="btn-add-item px-2 py-0.5 bg-amber-950/80 hover:bg-amber-900 text-amber-200 border border-amber-800/60 font-cinzel text-[10px] font-bold uppercase tracking-wider transition cursor-pointer flex items-center gap-1"
+              class="btn-add-item rpg-btn rpg-btn-gold px-2.5 py-0.5 text-[10px] font-cinzel font-bold uppercase tracking-wider cursor-pointer flex items-center gap-1"
               style="display: ${isMJ ? '' : 'none'};"
             >
               <span>+</span>
@@ -1269,13 +1282,13 @@ function updateCharactersGrid(characters = []) {
 
   if (!characters || characters.length === 0) {
     grid.innerHTML = `
-      <div id="no-players-message" class="col-span-full flex flex-col items-center justify-center p-12 bg-slate-900/60 border border-dashed border-slate-800 rounded-2xl text-center space-y-3">
-        <div class="w-14 h-14 rounded-2xl bg-slate-800/80 flex items-center justify-center text-3xl shadow-inner">
+      <div id="no-players-message" class="col-span-full flex flex-col items-center justify-center p-12 rpg-panel rpg-corner-brackets border-2 border-stone-800 text-center space-y-3">
+        <div class="w-14 h-14 rounded border border-amber-800/60 bg-stone-950 flex items-center justify-center text-3xl shadow-inner text-amber-500">
           ⏳
         </div>
-        <h3 class="font-bold text-slate-200 text-base">En attente de vos aventuriers...</h3>
-        <p class="text-xs text-slate-400 max-w-sm">
-          La salle est créée. Dès qu'un joueur rejoint la partie (jusqu'à 4 joueurs maximum), sa fiche de personnage sera automatiquement générée et affichée ici en temps réel.
+        <h3 class="font-bold font-cinzel text-amber-200 text-base">En attente de vos aventuriers...</h3>
+        <p class="text-xs text-stone-400 font-crimson max-w-sm leading-relaxed">
+          La salle est prête. Dès qu'un héros rejoint la quête (jusqu'à 4 aventuriers), sa plaque de personnage forgée sera automatiquement générée et affichée ici en temps réel.
         </p>
       </div>
     `;
@@ -1290,6 +1303,11 @@ function updateCharactersGrid(characters = []) {
     html += createCharacterCardHTML(char);
   });
   grid.innerHTML = html;
+
+  // Si un tour est en cours, réactiver l'aura dorée sur la fiche concernée
+  if (tacticalMapState.currentTurn) {
+    updateTurnDisplay(tacticalMapState.currentTurn);
+  }
 
   // Mettre à jour les options de cible pour le MJ
   updateDiceTargetOptions(characters);
@@ -1340,9 +1358,22 @@ function renderCharacter(slot, char) {
   }
   if (classEl && char.class) classEl.textContent = char.class;
 
-  // Mise à jour de la bordure et de l'ombre de la carte avec la couleur du joueur
-  card.style.borderColor = `${charColor}88`;
-  card.style.boxShadow = `0 10px 25px -5px rgba(0,0,0,0.7), inset 0 0 25px rgba(0,0,0,0.8), 0 0 15px ${charColor}20`;
+  // Mise à jour de la bordure et de l'ombre forgée de la carte avec la couleur du joueur
+  card.style.borderColor = `${charColor}aa`;
+  card.style.boxShadow = `0 10px 25px -5px rgba(0,0,0,0.85), inset 0 0 25px rgba(0,0,0,0.9), 0 0 15px ${charColor}25`;
+
+  // Vérifier si c'est le tour de ce personnage
+  const isCurrentTurn = Boolean(
+    tacticalMapState.currentTurn && (
+      (typeof tacticalMapState.currentTurn.slot === 'number' && Number(slot) === Number(tacticalMapState.currentTurn.slot)) ||
+      (char.name && tacticalMapState.currentTurn.name && char.name.toLowerCase() === tacticalMapState.currentTurn.name.toLowerCase())
+    )
+  );
+  if (isCurrentTurn) {
+    card.classList.add('active-turn-card');
+  } else {
+    card.classList.remove('active-turn-card');
+  }
 
   // Mise à jour de l'icône de race
   const raceIconEl = card.querySelector('.stone-card > div > div > div > span:first-child');
@@ -1363,25 +1394,26 @@ function renderCharacter(slot, char) {
   const hpPercent = Math.max(0, Math.min(100, Math.round((char.hp / char.maxHp) * 100)));
   const energyPercent = Math.max(0, Math.min(100, Math.round((char.energy / char.maxEnergy) * 100)));
 
-  // Jauge PV
+  // Jauge PV (Fiole de Sang Sculptée)
   const hpText = card.querySelector('.hp-text');
   const hpBar = card.querySelector('.hp-bar');
   if (hpText) hpText.textContent = `${char.hp} / ${char.maxHp}`;
   if (hpBar) {
     hpBar.style.width = `${hpPercent}%`;
     if (hpPercent <= 25) {
-      hpBar.className = 'h-full rounded-full transition-all duration-300 ease-out hp-bar bg-gradient-to-r from-rose-700 to-rose-500 animate-pulse';
+      hpBar.className = 'hp-bar vial-blood vial-blood-critical h-full shimmer-active transition-all duration-300 ease-out';
     } else {
-      hpBar.className = 'h-full rounded-full transition-all duration-300 ease-out hp-bar bg-gradient-to-r from-rose-600 to-amber-500';
+      hpBar.className = 'hp-bar vial-blood h-full shimmer-active transition-all duration-300 ease-out';
     }
   }
 
-  // Jauge Énergie
+  // Jauge Énergie (Fiole d'Éther Sculptée)
   const energyText = card.querySelector('.energy-text');
   const energyBar = card.querySelector('.energy-bar');
   if (energyText) energyText.textContent = `${char.energy} / ${char.maxEnergy}`;
   if (energyBar) {
     energyBar.style.width = `${energyPercent}%`;
+    energyBar.className = 'energy-bar vial-ether h-full shimmer-active transition-all duration-300 ease-out';
   }
 
   // Inventaire
@@ -1475,11 +1507,13 @@ function escapeHtml(str) {
 function appendChatMessage({ sender, text, timestamp, color, isMJ }) {
   if (!chatHistory) return;
   const msgEl = document.createElement('div');
-  msgEl.className = 'bg-slate-900 border border-slate-800 rounded-xl p-3 shadow-sm transition hover:border-slate-700';
+  msgEl.className = isMJ 
+    ? 'rpg-chat-msg-gm rounded p-3 mb-2 transition' 
+    : 'rpg-chat-msg rounded p-3 mb-2 transition';
   msgEl.setAttribute('data-sender', sender);
 
   // Si l'émetteur est le MJ : couleur jaune dorée #facc15 et couronne 👑
-  const senderColor = isMJ ? '#facc15' : (color || '#ef4444');
+  const senderColor = isMJ ? '#facc15' : (color || '#d4af37');
   const mjCrownBadge = isMJ ? '<span class="text-xs" title="Maître du Jeu">👑</span>' : '';
 
   msgEl.innerHTML = `
@@ -1488,9 +1522,9 @@ function appendChatMessage({ sender, text, timestamp, color, isMJ }) {
         ${mjCrownBadge}
         <span class="msg-sender-name">${escapeHtml(sender)}</span>
       </span>
-      <span class="text-[10px] text-slate-500 font-mono">${formatTime(timestamp)}</span>
+      <span class="text-[10px] text-stone-500 font-mono">${formatTime(timestamp)}</span>
     </div>
-    <p class="text-slate-200 text-xs sm:text-sm break-words">${escapeHtml(text)}</p>
+    <p class="text-stone-200 text-xs sm:text-sm font-crimson break-words leading-relaxed">${escapeHtml(text)}</p>
   `;
   chatHistory.appendChild(msgEl);
   scrollChatToBottom();
@@ -1505,20 +1539,20 @@ function appendDiceResult({ sender, formula, rolls, modifier, total, target, isC
   if (modifier > 0) modStr = ` + ${modifier}`;
   else if (modifier < 0) modStr = ` - ${Math.abs(modifier)}`;
 
-  const senderColor = isMJ ? '#facc15' : (color || '#ef4444');
+  const senderColor = isMJ ? '#facc15' : (color || '#d4af37');
   const mjCrownBadge = isMJ ? '<span class="text-xs" title="Maître du Jeu">👑</span> ' : '';
 
-  const targetBadge = target ? `<span class="ml-1.5 px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-semibold text-[10px] border border-amber-500/30">➔ ${escapeHtml(target.name)}</span>` : '';
+  const targetBadge = target ? `<span class="ml-1.5 px-2 py-0.5 rounded bg-amber-950/80 text-amber-300 font-semibold text-[10px] border border-amber-600/50">➔ ${escapeHtml(target.name)}</span>` : '';
 
   if (isCriticalSuccess) {
     // 20 Naturel (Réussite critique)
-    rollEl.className = 'bg-emerald-950/60 border-2 border-emerald-500 rounded-xl p-3.5 shadow-[0_0_20px_rgba(16,185,129,0.25)]';
+    rollEl.className = 'rpg-dice-card-crit-success rounded p-3 mb-2';
     rollEl.innerHTML = `
       <div class="flex items-center justify-between mb-1.5">
-        <span class="font-bold text-xs" style="color: ${senderColor};">🎲 ${mjCrownBadge}${escapeHtml(sender)} lance <span class="font-mono underline text-emerald-300">${formula}</span>${targetBadge}</span>
+        <span class="font-bold font-cinzel text-xs" style="color: ${senderColor};">🎲 ${mjCrownBadge}${escapeHtml(sender)} lance <span class="font-mono underline text-emerald-300">${formula}</span>${targetBadge}</span>
         <span class="text-[10px] text-emerald-400/80 font-mono">${timeStr}</span>
       </div>
-      <div class="bg-emerald-500/25 text-emerald-200 text-center py-1.5 rounded-lg font-black text-xs uppercase tracking-wider my-1 border border-emerald-500/40">
+      <div class="bg-emerald-950/70 text-emerald-200 text-center py-1.5 rounded font-cinzel font-black text-xs uppercase tracking-wider my-1 border border-emerald-500/50 shadow-[0_0_10px_rgba(16,185,129,0.3)]">
         ✨ 20 NATUREL ! RÉUSSITE CRITIQUE ! ✨
       </div>
       <div class="flex items-center justify-between mt-2 pt-1.5 border-t border-emerald-800/60 text-xs">
@@ -1528,13 +1562,13 @@ function appendDiceResult({ sender, formula, rolls, modifier, total, target, isC
     `;
   } else if (isCriticalFailure) {
     // 1 Naturel (Échec critique)
-    rollEl.className = 'bg-rose-950/60 border-2 border-rose-600 rounded-xl p-3.5 shadow-[0_0_20px_rgba(225,29,72,0.25)]';
+    rollEl.className = 'rpg-dice-card-crit-fail rounded p-3 mb-2';
     rollEl.innerHTML = `
       <div class="flex items-center justify-between mb-1.5">
-        <span class="font-bold text-xs" style="color: ${senderColor};">🎲 ${mjCrownBadge}${escapeHtml(sender)} lance <span class="font-mono underline text-rose-300">${formula}</span>${targetBadge}</span>
+        <span class="font-bold font-cinzel text-xs" style="color: ${senderColor};">🎲 ${mjCrownBadge}${escapeHtml(sender)} lance <span class="font-mono underline text-rose-300">${formula}</span>${targetBadge}</span>
         <span class="text-[10px] text-rose-400/80 font-mono">${timeStr}</span>
       </div>
-      <div class="bg-rose-600/25 text-rose-200 text-center py-1.5 rounded-lg font-black text-xs uppercase tracking-wider my-1 border border-rose-500/40">
+      <div class="bg-rose-950/70 text-rose-200 text-center py-1.5 rounded font-cinzel font-black text-xs uppercase tracking-wider my-1 border border-rose-500/50 shadow-[0_0_10px_rgba(225,29,72,0.3)]">
         💀 1 NATUREL ! ÉCHEC CRITIQUE ! 💀
       </div>
       <div class="flex items-center justify-between mt-2 pt-1.5 border-t border-rose-800/60 text-xs">
@@ -1544,15 +1578,15 @@ function appendDiceResult({ sender, formula, rolls, modifier, total, target, isC
     `;
   } else {
     // Tirage normal
-    rollEl.className = 'bg-slate-900 border border-indigo-500/40 rounded-xl p-3';
+    rollEl.className = 'rpg-dice-card rounded p-3 mb-2';
     rollEl.innerHTML = `
       <div class="flex items-center justify-between mb-1">
-        <span class="font-bold text-xs" style="color: ${senderColor};">🎲 ${mjCrownBadge}${escapeHtml(sender)} lance <span class="font-mono text-amber-300 font-bold">${formula}</span>${targetBadge}</span>
-        <span class="text-[10px] text-slate-500 font-mono">${timeStr}</span>
+        <span class="font-bold font-cinzel text-xs" style="color: ${senderColor};">🎲 ${mjCrownBadge}${escapeHtml(sender)} lance <span class="font-mono text-amber-300 font-bold">${formula}</span>${targetBadge}</span>
+        <span class="text-[10px] text-stone-500 font-mono">${timeStr}</span>
       </div>
       <div class="flex items-center justify-between mt-1 text-xs">
-        <span class="text-slate-400 font-mono text-[11px]">Détail : <span class="text-slate-200">${rollsDetail}</span>${modStr}</span>
-        <span class="text-lg font-bold text-amber-400 font-mono px-2.5 py-0.5 rounded bg-slate-950 border border-slate-800">${total}</span>
+        <span class="text-stone-400 font-mono text-[11px]">Détail : <span class="text-stone-200">${rollsDetail}</span>${modStr}</span>
+        <span class="text-lg font-bold text-amber-400 font-mono px-2.5 py-0.5 rounded bg-stone-950 border border-stone-800">${total}</span>
       </div>
     `;
   }
@@ -1587,20 +1621,20 @@ function triggerDiceSuspenseAnimation(dice) {
   }
 
   // Retirer les classes de secousse, zoom et lueur
-  appBody.classList.remove('shake-active');
-  overlayCard.className = 'relative z-10 max-w-md w-full flex flex-col items-center text-center p-8 rounded-3xl transition-all duration-300 transform bg-slate-900/95 border-2 border-indigo-500/60 shadow-2xl';
-  overlayVal.className = 'font-mono font-black text-6xl sm:text-7xl my-1 tracking-tight text-amber-300 slot-rolling';
+  appBody.classList.remove('shake-active', 'shake-subtle-active');
+  overlayCard.className = 'relative z-10 max-w-md w-full flex flex-col items-center text-center p-8 rounded rpg-panel rpg-corner-brackets border-2 border-amber-900/80 transition-all duration-300 transform shadow-2xl';
+  overlayVal.className = 'font-mono font-black text-6xl sm:text-7xl my-1 tracking-tight text-amber-400 slot-rolling';
 
   // Remplir le nom de l'expéditeur et la cible
   const targetLabel = dice.target ? ` ➔ pour ${dice.target.name}` : '';
-  overlaySender.className = 'text-xs uppercase font-bold tracking-widest px-3 py-1 rounded-full mb-3 bg-indigo-950/80 text-indigo-200 border border-indigo-800 shadow';
+  overlaySender.className = 'text-xs uppercase font-cinzel font-bold tracking-widest px-3 py-1 rounded mb-3 bg-stone-900 text-amber-200 border border-amber-800/80 shadow';
   overlaySender.textContent = dice.isMJ ? `👑 Le Maître du Jeu${targetLabel}` : `🎲 ${dice.sender}${targetLabel}`;
   overlaySub.textContent = `Formule : ${dice.formula}`;
 
   // État d'attente Casino (Machine à sous)
   overlayIcon.textContent = '🎲';
   overlayVerdict.textContent = 'LE SORT EN EST JETÉ...';
-  overlayVerdict.className = 'text-xl sm:text-2xl font-black uppercase tracking-wider text-amber-400/90 my-2 animate-pulse';
+  overlayVerdict.className = 'text-xl sm:text-2xl font-cinzel font-black uppercase tracking-wider text-amber-400/90 my-2 animate-pulse';
 
   // Animation machine à sous pendant 2 secondes (nombres aléatoires défilants très vite)
   slotMachineInterval = setInterval(() => {
@@ -1634,56 +1668,68 @@ function triggerDiceSuspenseAnimation(dice) {
     // Configuration selon les 4 paliers d20 ou autre dé
     if (isD20) {
       if (d20Val === 1) {
-        // 1 : Échec Critique + secousse de tout l'écran
+        // 1 : Échec Critique + pulsation rouge sang sinistre + voile de fumée
         overlayIcon.textContent = '💀';
         overlayVerdict.textContent = 'ÉCHEC CRITIQUE !';
-        overlayVerdict.className = 'text-3xl sm:text-4xl font-black uppercase tracking-wider text-rose-500 my-2 drop-shadow-[0_0_20px_rgba(244,63,94,0.9)]';
+        overlayVerdict.className = 'text-3xl sm:text-4xl font-cinzel font-black uppercase tracking-wider text-rose-500 my-2 drop-shadow-[0_0_20px_rgba(244,63,94,0.9)]';
         overlayVal.className = 'font-mono font-black text-7xl sm:text-8xl my-1 tracking-tight text-rose-400 final-zoom-impact';
-        overlayCard.className = 'relative z-10 max-w-md w-full flex flex-col items-center text-center p-8 rounded-3xl transition-all duration-300 transform bg-rose-950/90 border-4 border-rose-600 shadow-[0_0_60px_rgba(225,29,72,0.8)] crit-glow-fail';
-        overlaySender.className = 'text-xs uppercase font-bold tracking-widest px-3 py-1 rounded-full mb-3 bg-rose-900/80 text-rose-200 border border-rose-700 shadow';
+        overlayCard.className = 'relative z-10 max-w-md w-full flex flex-col items-center text-center p-8 rounded rpg-panel rpg-corner-brackets transition-all duration-300 transform border-2 border-rose-600 shadow-[0_0_60px_rgba(225,29,72,0.8)] fumble-blood-active';
+        overlaySender.className = 'text-xs uppercase font-cinzel font-bold tracking-widest px-3 py-1 rounded mb-3 bg-rose-950 text-rose-200 border border-rose-800 shadow';
 
-        // Secousse intense de tout l'écran
-        appBody.classList.add('shake-active');
+        // Léger voile de fumée sombre
+        const smokeOverlay = document.createElement('div');
+        smokeOverlay.className = 'fumble-smoke-overlay';
+        document.body.appendChild(smokeOverlay);
+        setTimeout(() => smokeOverlay.remove(), 1400);
 
       } else if (d20Val >= 2 && d20Val <= 9) {
         // 2 à 9 : Échec
         overlayIcon.textContent = '❌';
         overlayVerdict.textContent = 'ÉCHEC';
-        overlayVerdict.className = 'text-3xl sm:text-4xl font-black uppercase tracking-wider text-amber-500 my-2';
-        overlayVal.className = 'font-mono font-black text-6xl sm:text-7xl my-1 tracking-tight text-amber-400 final-zoom-impact';
-        overlayCard.className = 'relative z-10 max-w-md w-full flex flex-col items-center text-center p-8 rounded-3xl transition-all duration-300 transform bg-slate-900/95 border-2 border-amber-600/70 shadow-2xl';
-        overlaySender.className = 'text-xs uppercase font-bold tracking-widest px-3 py-1 rounded-full mb-3 bg-amber-950/80 text-amber-200 border border-amber-800 shadow';
+        overlayVerdict.className = 'text-3xl sm:text-4xl font-cinzel font-black uppercase tracking-wider text-amber-600/90 my-2';
+        overlayVal.className = 'font-mono font-black text-6xl sm:text-7xl my-1 tracking-tight text-amber-500/90 final-zoom-impact';
+        overlayCard.className = 'relative z-10 max-w-md w-full flex flex-col items-center text-center p-8 rounded rpg-panel rpg-corner-brackets transition-all duration-300 transform border-2 border-stone-700 shadow-2xl';
+        overlaySender.className = 'text-xs uppercase font-cinzel font-bold tracking-widest px-3 py-1 rounded mb-3 bg-stone-900 text-stone-300 border border-stone-800 shadow';
 
       } else if (d20Val >= 10 && d20Val <= 19) {
         // 10 à 19 : Réussite
         overlayIcon.textContent = '⚔️';
         overlayVerdict.textContent = 'RÉUSSITE';
-        overlayVerdict.className = 'text-3xl sm:text-4xl font-black uppercase tracking-wider text-emerald-400 my-2';
+        overlayVerdict.className = 'text-3xl sm:text-4xl font-cinzel font-black uppercase tracking-wider text-emerald-400 my-2';
         overlayVal.className = 'font-mono font-black text-6xl sm:text-7xl my-1 tracking-tight text-emerald-300 final-zoom-impact';
-        overlayCard.className = 'relative z-10 max-w-md w-full flex flex-col items-center text-center p-8 rounded-3xl transition-all duration-300 transform bg-slate-900/95 border-2 border-emerald-500/70 shadow-2xl';
-        overlaySender.className = 'text-xs uppercase font-bold tracking-widest px-3 py-1 rounded-full mb-3 bg-emerald-950/80 text-emerald-200 border border-emerald-800 shadow';
+        overlayCard.className = 'relative z-10 max-w-md w-full flex flex-col items-center text-center p-8 rounded rpg-panel rpg-corner-brackets transition-all duration-300 transform border-2 border-emerald-800 shadow-2xl';
+        overlaySender.className = 'text-xs uppercase font-cinzel font-bold tracking-widest px-3 py-1 rounded mb-3 bg-emerald-950 text-emerald-200 border border-emerald-800 shadow';
 
       } else if (d20Val === 20) {
-        // 20 : Réussite Critique + Pluie de confettis !
+        // 20 : Réussite Critique + Flash doré éclatant + Secousse subtile (3px) + Particules radiales
         overlayIcon.textContent = '👑';
         overlayVerdict.textContent = 'RÉUSSITE CRITIQUE !';
-        overlayVerdict.className = 'text-3xl sm:text-4xl font-black uppercase tracking-wider text-amber-300 my-2 drop-shadow-[0_0_25px_rgba(251,191,36,1)]';
-        overlayVal.className = 'font-mono font-black text-7xl sm:text-8xl my-1 tracking-tight text-amber-400 final-zoom-impact';
-        overlayCard.className = 'relative z-10 max-w-md w-full flex flex-col items-center text-center p-8 rounded-3xl transition-all duration-300 transform bg-emerald-950/90 border-4 border-amber-400 shadow-[0_0_70px_rgba(245,158,11,0.9)] crit-glow-success';
-        overlaySender.className = 'text-xs uppercase font-bold tracking-widest px-3 py-1 rounded-full mb-3 bg-amber-500 text-slate-950 font-black shadow-lg';
+        overlayVerdict.className = 'text-3xl sm:text-4xl font-cinzel font-black uppercase tracking-wider text-amber-300 my-2 drop-shadow-[0_0_25px_rgba(251,191,36,1)]';
+        overlayVal.className = 'font-mono font-black text-7xl sm:text-8xl my-1 tracking-tight text-amber-300 final-zoom-impact';
+        overlayCard.className = 'relative z-10 max-w-md w-full flex flex-col items-center text-center p-8 rounded rpg-panel rpg-corner-brackets rpg-panel-gold transition-all duration-300 transform shadow-[0_0_70px_rgba(245,158,11,0.9)]';
+        overlaySender.className = 'text-xs uppercase font-cinzel font-bold tracking-widest px-3 py-1 rounded mb-3 bg-amber-500 text-stone-950 font-black shadow-lg';
 
-        // Déclenchement des confettis festifs
+        // Flash doré éclatant en superposition
+        const goldFlash = document.createElement('div');
+        goldFlash.className = 'crit-flash-gold';
+        document.body.appendChild(goldFlash);
+        setTimeout(() => goldFlash.remove(), 900);
+
+        // Secousse d'écran subtile (3px)
+        appBody.classList.add('shake-subtle-active');
+
+        // Déclenchement des confettis / étincelles magiques festifs
         if (typeof confetti === 'function') {
           try {
             confetti({
               particleCount: 120,
               spread: 90,
               origin: { y: 0.55 },
-              colors: ['#f59e0b', '#10b981', '#38bdf8', '#fbbf24', '#ffffff']
+              colors: ['#d4af37', '#fde047', '#b45309', '#38bdf8', '#ffffff']
             });
             setTimeout(() => {
-              confetti({ particleCount: 80, angle: 60, spread: 65, origin: { x: 0.1, y: 0.6 } });
-              confetti({ particleCount: 80, angle: 120, spread: 65, origin: { x: 0.9, y: 0.6 } });
+              confetti({ particleCount: 70, angle: 60, spread: 65, origin: { x: 0.1, y: 0.6 } });
+              confetti({ particleCount: 70, angle: 120, spread: 65, origin: { x: 0.9, y: 0.6 } });
             }, 200);
           } catch (e) {
             console.warn('Erreur confetti :', e);
@@ -1694,10 +1740,10 @@ function triggerDiceSuspenseAnimation(dice) {
       // Autre type de dé (d6, d10, etc.)
       overlayIcon.textContent = '🎲';
       overlayVerdict.textContent = `TOTAL : ${dice.total}`;
-      overlayVerdict.className = 'text-2xl sm:text-3xl font-black uppercase tracking-wider text-sky-400 my-2';
-      overlayVal.className = 'font-mono font-black text-6xl my-1 text-slate-100 final-zoom-impact';
-      overlayCard.className = 'relative z-10 max-w-md w-full flex flex-col items-center text-center p-8 rounded-3xl transition-all duration-300 transform bg-slate-900/95 border-2 border-indigo-500/60 shadow-2xl';
-      overlaySender.className = 'text-xs uppercase font-bold tracking-widest px-3 py-1 rounded-full mb-3 bg-indigo-950/80 text-indigo-200 border border-indigo-800 shadow';
+      overlayVerdict.className = 'text-2xl sm:text-3xl font-cinzel font-black uppercase tracking-wider text-amber-300 my-2';
+      overlayVal.className = 'font-mono font-black text-6xl my-1 text-stone-100 final-zoom-impact';
+      overlayCard.className = 'relative z-10 max-w-md w-full flex flex-col items-center text-center p-8 rounded rpg-panel rpg-corner-brackets transition-all duration-300 transform border-2 border-amber-900/60 shadow-2xl';
+      overlaySender.className = 'text-xs uppercase font-cinzel font-bold tracking-widest px-3 py-1 rounded mb-3 bg-stone-900 text-amber-200 border border-amber-800/80 shadow';
     }
 
     // Disparition automatique après 3.2 secondes suivant la révélation
@@ -1710,7 +1756,8 @@ function triggerDiceSuspenseAnimation(dice) {
 
       setTimeout(() => {
         suspenseOverlay.classList.add('hidden');
-        appBody.classList.remove('shake-active');
+        appBody.classList.remove('shake-active', 'shake-subtle-active');
+        overlayCard.classList.remove('fumble-blood-active');
         overlayVal.classList.remove('final-zoom-impact');
       }, 300);
     }, 3200);
@@ -3043,19 +3090,19 @@ function drawToken(ctx, token, isHovered, isDragged) {
 
   // Cartouche de nom sous le pion
   const nameText = token.name || (isMonster ? 'Monstre' : 'Joueur');
-  ctx.font = 'bold 11px Cinzel, serif, sans-serif';
+  ctx.font = 'bold 11px Cinzel, Georgia, serif';
   const textWidth = ctx.measureText(nameText).width;
-  const badgeW = textWidth + 12;
-  const badgeH = 16;
+  const badgeW = textWidth + 14;
+  const badgeH = 17;
   const badgeX = token.x - badgeW / 2;
   const badgeY = token.y + radius + 4;
 
-  ctx.fillStyle = 'rgba(8, 8, 12, 0.9)';
-  ctx.strokeStyle = token.color || '#d97706';
+  ctx.fillStyle = 'rgba(12, 10, 9, 0.94)';
+  ctx.strokeStyle = token.color || '#d4af37';
   ctx.lineWidth = 1;
 
   ctx.beginPath();
-  const r = 4;
+  const r = 3;
   ctx.moveTo(badgeX + r, badgeY);
   ctx.lineTo(badgeX + badgeW - r, badgeY);
   ctx.arcTo(badgeX + badgeW, badgeY, badgeX + badgeW, badgeY + badgeH, r);
@@ -3069,7 +3116,7 @@ function drawToken(ctx, token, isHovered, isDragged) {
   ctx.fill();
   ctx.stroke();
 
-  ctx.fillStyle = '#f8fafc';
+  ctx.fillStyle = '#fef08a';
   ctx.fillText(nameText, token.x, badgeY + badgeH / 2 + 1);
 
   // Aura animée et voyante si c'est le tour de ce joueur/pion
@@ -3083,19 +3130,31 @@ function drawToken(ctx, token, isHovered, isDragged) {
   if (isCurrentTurn) {
     ctx.save();
     const pulseOffset = Math.sin(Date.now() / 250) * 3;
+    // Anneau doré éclatant
     ctx.beginPath();
     ctx.arc(token.x, token.y, radius + 8 + pulseOffset, 0, Math.PI * 2);
-    ctx.strokeStyle = '#fbbf24';
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#d4af37';
+    ctx.lineWidth = 2.5;
     ctx.shadowColor = '#f59e0b';
-    ctx.shadowBlur = 14;
+    ctx.shadowBlur = 16;
     ctx.stroke();
 
-    // Petit insigne "⚔️ TOUR" au-dessus du pion
-    ctx.font = 'bold 9px Cinzel, sans-serif';
-    ctx.fillStyle = '#fbbf24';
+    // Anneau arcanique intérieur en pointillés
+    ctx.beginPath();
+    ctx.arc(token.x, token.y, radius + 4 + pulseOffset * 0.5, 0, Math.PI * 2);
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = '#fde047';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Petit insigne "⚔️ TOUR ACTIF" au-dessus du pion
+    ctx.font = 'bold 9px Cinzel, Georgia, serif';
+    ctx.fillStyle = '#fde047';
+    ctx.shadowColor = '#d4af37';
+    ctx.shadowBlur = 8;
     ctx.textAlign = 'center';
-    ctx.fillText('⚔️ TOUR', token.x, token.y - radius - 6);
+    ctx.fillText('⚔️ TOUR ACTIF', token.x, token.y - radius - 7);
     ctx.restore();
   }
 
@@ -3797,6 +3856,22 @@ function updateTurnDisplay(currentTurn) {
       turnNameEl.style.color = '#a8a29e';
     }
   }
+
+  // Mettre à jour l'aura arcanique dorée sur la fiche d'aventurier dans la vue Équipe
+  document.querySelectorAll('article[data-slot]').forEach((card) => {
+    const cardSlot = Number(card.getAttribute('data-slot'));
+    const isCurrent = Boolean(
+      currentTurn && (
+        (typeof currentTurn.slot === 'number' && cardSlot === currentTurn.slot) ||
+        (currentTurn.name && card.textContent && card.textContent.toLowerCase().includes(currentTurn.name.toLowerCase()))
+      )
+    );
+    if (isCurrent) {
+      card.classList.add('active-turn-card');
+    } else {
+      card.classList.remove('active-turn-card');
+    }
+  });
 }
 
 let turnAlertTimeout = null;
