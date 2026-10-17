@@ -880,6 +880,7 @@ function applyRolePermissions() {
 
   // 5.2 Outils de Carte Tactique et Brouillard de guerre (Réservés au MJ)
   const mjFogTools = document.getElementById('mj-fog-tools');
+  const mjWallTools = document.getElementById('mj-wall-tools');
   const mjMapActions = document.getElementById('mj-map-actions');
   if (mjFogTools) {
     if (isJoined && isMJ) {
@@ -888,6 +889,15 @@ function applyRolePermissions() {
     } else {
       mjFogTools.classList.remove('flex');
       mjFogTools.classList.add('hidden');
+    }
+  }
+  if (mjWallTools) {
+    if (isJoined && isMJ) {
+      mjWallTools.classList.remove('hidden');
+      mjWallTools.classList.add('flex');
+    } else {
+      mjWallTools.classList.remove('flex');
+      mjWallTools.classList.add('hidden');
     }
   }
   if (mjMapActions) {
@@ -2039,6 +2049,45 @@ socket.on('turn:changed', ({ currentTurn }) => {
   }
 });
 
+// Réception d'une réglette ou d'un gabarit de sort émis par un autre joueur ou le MJ
+socket.on('map:measured', (data) => {
+  if (data && data.socketId) {
+    remoteMeasurements.set(data.socketId, data);
+    if (typeof requestMapRender === 'function') requestMapRender();
+  }
+});
+
+// Effacement de la réglette ou du gabarit de sort distant
+socket.on('map:measure_cleared', ({ socketId }) => {
+  if (socketId && remoteMeasurements.has(socketId)) {
+    remoteMeasurements.delete(socketId);
+    if (typeof requestMapRender === 'function') requestMapRender();
+  }
+});
+
+// Événements de synchronisation des Murs (rectilignes)
+socket.on('map:wall_added', ({ wall }) => {
+  if (wall) {
+    if (!Array.isArray(tacticalMapState.walls)) tacticalMapState.walls = [];
+    tacticalMapState.walls.push(wall);
+    if (typeof requestMapRender === 'function') requestMapRender();
+  }
+});
+
+socket.on('map:wall_removed', ({ wallId }) => {
+  if (wallId && Array.isArray(tacticalMapState.walls)) {
+    tacticalMapState.walls = tacticalMapState.walls.filter((w) => w.id !== wallId);
+    if (hoveredWall && hoveredWall.id === wallId) hoveredWall = null;
+    if (typeof requestMapRender === 'function') requestMapRender();
+  }
+});
+
+socket.on('map:walls_cleared', () => {
+  tacticalMapState.walls = [];
+  hoveredWall = null;
+  if (typeof requestMapRender === 'function') requestMapRender();
+});
+
 /**
  * Synchronise les jauges de vie d'un pion joueur quand sa fiche change
  */
@@ -2669,6 +2718,7 @@ let tacticalMapState = {
   fogEnabled: true,
   tokens: [],
   revealedAreas: [],
+  walls: [],
   currentTurn: null
 };
 
@@ -2680,7 +2730,7 @@ let mapCamera = {
   maxZoom: 3.0
 };
 
-let mapActiveTool = 'select'; // 'select' | 'pan' | 'fog-rect' | 'fog-circle'
+let mapActiveTool = 'select'; // 'select' | 'pan' | 'fog-rect' | 'fog-circle' | 'measure' | 'aoe-*' | 'wall' | 'wall-delete'
 let isMapPanning = false;
 let panStart = { x: 0, y: 0 };
 let cameraStart = { x: 0, y: 0 };
@@ -2697,6 +2747,29 @@ let fogDrawState = {
   currentX: 0,
   currentY: 0
 };
+
+let measureState = {
+  isMeasuring: false,
+  startX: 0,
+  startY: 0,
+  currentX: 0,
+  currentY: 0,
+  type: 'measure' // 'measure' | 'aoe-circle' | 'aoe-cone' | 'aoe-line'
+};
+
+const remoteMeasurements = new Map();
+let lastMeasureEmitTime = 0;
+
+// Variables pour le tracé et la gestion des Murs manuels
+let wallDrawState = {
+  isDrawing: false,
+  startX: 0,
+  startY: 0,
+  currentX: 0,
+  currentY: 0
+};
+let hoveredWall = null;
+let wallCollisionActive = null;
 
 let hoveredToken = null;
 let mapCanvas = null;
@@ -2723,6 +2796,7 @@ function updateTacticalMapState(newMap) {
   };
   if (!Array.isArray(tacticalMapState.tokens)) tacticalMapState.tokens = [];
   if (!Array.isArray(tacticalMapState.revealedAreas)) tacticalMapState.revealedAreas = [];
+  if (!Array.isArray(tacticalMapState.walls)) tacticalMapState.walls = [];
 
   if (tacticalMapState.backgroundUrl) {
     loadBackgroundImage(tacticalMapState.backgroundUrl);
@@ -2787,8 +2861,230 @@ function getMapWorldDimensions() {
 }
 
 /**
+ * Calcule la portée de vision d'un pion en pixels (en fonction de la race / vision dans le noir)
+ */
+function getTokenVisionRadius(token) {
+  if (!token) return 600;
+  if (typeof token.visionRadius === 'number' && token.visionRadius > 0) {
+    return token.visionRadius;
+  }
+
+  let radius = 600; // 18m par défaut
+
+  if (token.type === 'player') {
+    const char = [...charactersCache.values()].find(
+      (c) => c && (c.slot === token.slot || (token.name && c.name && c.name.toLowerCase() === token.name.toLowerCase()))
+    );
+    if (char) {
+      const race = (char.race || '').toLowerCase();
+      // Races dotées de la vision dans le noir (Darkvision)
+      if (
+        race.includes('elfe') ||
+        race.includes('nain') ||
+        race.includes('orc') ||
+        race.includes('tieffelin') ||
+        race.includes('gnome') ||
+        race.includes('gobelin')
+      ) {
+        radius = 750; // 22.5 mètres (15 cases)
+      } else {
+        radius = 550; // 16.5 mètres (11 cases) pour les humains et halfelins
+      }
+    }
+  }
+
+  return radius;
+}
+
+/**
+ * Calcule l'intersection entre un rayon 2D partant de (px, py) et un segment de mur (x1, y1)-(x2, y2)
+ */
+function getRaySegmentIntersection(px, py, dx, dy, maxDist, x1, y1, x2, y2) {
+  const r_dx = dx * maxDist;
+  const r_dy = dy * maxDist;
+  const s_dx = x2 - x1;
+  const s_dy = y2 - y1;
+
+  const denom = r_dx * s_dy - r_dy * s_dx;
+  if (Math.abs(denom) < 1e-9) return null;
+
+  const qx = x1 - px;
+  const qy = y1 - py;
+
+  const t = (qx * s_dy - qy * s_dx) / denom;
+  const u = (qx * r_dy - qy * r_dx) / denom;
+
+  if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
+    return {
+      x: px + t * r_dx,
+      y: py + t * r_dy,
+      dist: t * maxDist
+    };
+  }
+  return null;
+}
+
+/**
+ * Calcule le polygone de visibilité (Ligne de Vue) autour d'un point par lancer de rayons (2D Raycasting)
+ * Les murs dont 'blocksLight !== false' arrêtent les rayons et projettent des ombres
+ */
+function computeVisibilityPolygon(originX, originY, maxRadius, walls) {
+  const activeWalls = (walls || []).filter((w) => w.blocksLight !== false);
+  const anglesSet = new Set();
+
+  // 1. Rayons circulaires uniformes (48 rayons pour une rotondité parfaite en zone dégagée)
+  const numCircleRays = 48;
+  for (let i = 0; i < numCircleRays; i++) {
+    anglesSet.add((i / numCircleRays) * Math.PI * 2 - Math.PI);
+  }
+
+  // 2. Rayons projetés vers les sommets des murs proches (+/- epsilon pour franchir les coins)
+  for (let i = 0; i < activeWalls.length; i++) {
+    const w = activeWalls[i];
+    const d1 = Math.hypot(w.x1 - originX, w.y1 - originY);
+    const d2 = Math.hypot(w.x2 - originX, w.y2 - originY);
+
+    if (d1 <= maxRadius * 1.5 || d2 <= maxRadius * 1.5) {
+      const a1 = Math.atan2(w.y1 - originY, w.x1 - originX);
+      const a2 = Math.atan2(w.y2 - originY, w.x2 - originX);
+      const eps = 0.0002;
+
+      anglesSet.add(a1 - eps);
+      anglesSet.add(a1);
+      anglesSet.add(a1 + eps);
+
+      anglesSet.add(a2 - eps);
+      anglesSet.add(a2);
+      anglesSet.add(a2 + eps);
+    }
+  }
+
+  const angles = Array.from(anglesSet).sort((a, b) => a - b);
+  const polygon = [];
+
+  for (let i = 0; i < angles.length; i++) {
+    const ang = angles[i];
+    const dx = Math.cos(ang);
+    const dy = Math.sin(ang);
+
+    let closestDist = maxRadius;
+    let hitX = originX + dx * maxRadius;
+    let hitY = originY + dy * maxRadius;
+
+    // Test d'occlusion avec chaque mur
+    for (let j = 0; j < activeWalls.length; j++) {
+      const w = activeWalls[j];
+      const hit = getRaySegmentIntersection(originX, originY, dx, dy, maxRadius, w.x1, w.y1, w.x2, w.y2);
+      if (hit && hit.dist < closestDist) {
+        closestDist = hit.dist;
+        hitX = hit.x;
+        hitY = hit.y;
+      }
+    }
+
+    polygon.push({ x: hitX, y: hitY, angle: ang });
+  }
+
+  return polygon;
+}
+
+/**
+ * Vérifie si un point du plateau est visible pour les joueurs
+ * (soit dans une zone manuellement révélée, soit dans la ligne de vue directe non-obstruée d'un héros)
+ */
+function isPointVisibleToPlayers(px, py) {
+  if (!tacticalMapState.fogEnabled) return true;
+
+  // 1. Zones révélées au pinceau par le MJ
+  const areas = tacticalMapState.revealedAreas || [];
+  for (let i = 0; i < areas.length; i++) {
+    const a = areas[i];
+    if (a.type === 'circle') {
+      if (Math.hypot(px - a.x, py - a.y) <= (a.r || 50)) return true;
+    } else {
+      if (px >= a.x && px <= a.x + a.w && py >= a.y && py <= a.y + a.h) return true;
+    }
+  }
+
+  // 2. Champ de vision automatique des pions joueurs
+  const playerTokens = (tacticalMapState.tokens || []).filter((t) => t.type === 'player');
+  if (!playerTokens.length) return false;
+
+  const walls = (tacticalMapState.walls || []).filter((w) => w.blocksLight !== false);
+
+  for (let i = 0; i < playerTokens.length; i++) {
+    const pt = playerTokens[i];
+    const maxRadius = getTokenVisionRadius(pt);
+    const dist = Math.hypot(px - pt.x, py - pt.y);
+
+    if (dist <= maxRadius) {
+      let blocked = false;
+      for (let j = 0; j < walls.length; j++) {
+        const w = walls[j];
+        if (doSegmentsIntersect(pt.x, pt.y, px, py, w.x1, w.y1, w.x2, w.y2)) {
+          blocked = true;
+          break;
+        }
+      }
+      if (!blocked) return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Vérifie si un pion est actuellement visible pour les joueurs
+ */
+function isTokenVisibleToPlayers(token) {
+  if (!token) return false;
+  if (token.type === 'player') return true;
+  if (CURRENT_ROLE === 'mj') return true;
+  return isPointVisibleToPlayers(token.x, token.y);
+}
+
+/**
+ * Dessine les contours arcaniques de vision des joueurs pour le Maître du Jeu
+ */
+function drawPlayerVisionOutlines(ctx) {
+  const playerTokens = (tacticalMapState.tokens || []).filter((t) => t.type === 'player');
+  if (!playerTokens.length) return;
+
+  const walls = tacticalMapState.walls || [];
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(212, 175, 55, 0.45)';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([6, 6]);
+
+  playerTokens.forEach((pToken) => {
+    const visionRadius = getTokenVisionRadius(pToken);
+    const poly = computeVisibilityPolygon(pToken.x, pToken.y, visionRadius, walls);
+
+    if (poly.length >= 3) {
+      ctx.beginPath();
+      ctx.moveTo(poly[0].x, poly[0].y);
+      for (let i = 1; i < poly.length; i++) {
+        ctx.lineTo(poly[i].x, poly[i].y);
+      }
+      ctx.closePath();
+      ctx.stroke();
+
+      ctx.setLineDash([]);
+      ctx.font = 'bold 9px Cinzel, Georgia, serif';
+      ctx.fillStyle = 'rgba(254, 240, 138, 0.75)';
+      ctx.textAlign = 'center';
+      ctx.fillText(`Vision de ${pToken.name || 'Héros'}`, pToken.x, pToken.y - (pToken.size || 40) / 2 - 8);
+      ctx.setLineDash([6, 6]);
+    }
+  });
+
+  ctx.restore();
+}
+
+/**
  * Reconstruit le canvas de brouillard de guerre hors-champ (Offscreen Canvas)
- * Utilise 'destination-out' pour percer les zones révélées de manière ultra fluide
+ * Utilise 'destination-out' pour percer la vision automatique bloquée par les murs
  */
 function rebuildFogCanvas() {
   if (!offscreenFogCanvas) {
@@ -2807,16 +3103,16 @@ function rebuildFogCanvas() {
   if (!tacticalMapState.fogEnabled) return;
 
   const isMJ = CURRENT_ROLE === 'mj';
-  // Pour le MJ : brouillard semi-transparent sombre pour voir la carte complète
-  // Pour les Joueurs : voile sombre opaque mystique
-  offscreenFogCtx.fillStyle = isMJ ? 'rgba(10, 10, 18, 0.60)' : 'rgba(5, 5, 8, 0.98)';
+  // Pour le MJ : brouillard semi-transparent pour superviser le donjon
+  // Pour les Joueurs : obscurité totale impénétrable
+  offscreenFogCtx.fillStyle = isMJ ? 'rgba(10, 10, 18, 0.60)' : 'rgba(5, 5, 8, 1.0)';
   offscreenFogCtx.fillRect(0, 0, w, h);
 
-  // Découpe des zones révélées par le MJ
   offscreenFogCtx.save();
   offscreenFogCtx.globalCompositeOperation = 'destination-out';
   offscreenFogCtx.fillStyle = '#000000';
 
+  // 1. Découpe des zones révélées manuellement par le MJ
   (tacticalMapState.revealedAreas || []).forEach((area) => {
     if (area.type === 'circle') {
       offscreenFogCtx.beginPath();
@@ -2824,6 +3120,25 @@ function rebuildFogCanvas() {
       offscreenFogCtx.fill();
     } else {
       offscreenFogCtx.fillRect(area.x, area.y, area.w, area.h);
+    }
+  });
+
+  // 2. Découpe du champ de vision automatique des pions joueurs (occulté par les murs)
+  const playerTokens = (tacticalMapState.tokens || []).filter((t) => t.type === 'player');
+  const walls = tacticalMapState.walls || [];
+
+  playerTokens.forEach((pToken) => {
+    const visionRadius = getTokenVisionRadius(pToken);
+    const poly = computeVisibilityPolygon(pToken.x, pToken.y, visionRadius, walls);
+
+    if (poly.length >= 3) {
+      offscreenFogCtx.beginPath();
+      offscreenFogCtx.moveTo(poly[0].x, poly[0].y);
+      for (let i = 1; i < poly.length; i++) {
+        offscreenFogCtx.lineTo(poly[i].x, poly[i].y);
+      }
+      offscreenFogCtx.closePath();
+      offscreenFogCtx.fill();
     }
   });
 
@@ -2995,6 +3310,16 @@ function renderTacticalMap() {
   mapCtx.strokeRect(0, 0, worldW, worldH);
   mapCtx.restore();
 
+  // 2b. Murs tactiques infranchissables
+  drawWalls(mapCtx, tacticalMapState.walls, CURRENT_ROLE === 'mj');
+
+  // 3. Rayon d'action et portée de déplacement (Halo tactique sous les pions)
+  if (draggedToken) {
+    drawMovementHalo(mapCtx, draggedToken, false, true, dragTokenInitialPos);
+  } else if (hoveredToken && mapActiveTool === 'select') {
+    drawMovementHalo(mapCtx, hoveredToken, true, false, null);
+  }
+
   // 4. Pions (Tokens)
   const tokens = tacticalMapState.tokens || [];
   const sortedTokens = [...tokens].sort((a, b) => {
@@ -3006,14 +3331,27 @@ function renderTacticalMap() {
   });
 
   sortedTokens.forEach((token) => {
+    // Si c'est un joueur qui regarde et que le brouillard est actif, masquer les monstres hors champ de vision
+    if (CURRENT_ROLE !== 'mj' && tacticalMapState.fogEnabled && token.type === 'monster') {
+      if (!isTokenVisibleToPlayers(token)) {
+        return;
+      }
+    }
     const isHovered = hoveredToken && hoveredToken.id === token.id;
     const isDragged = draggedToken && draggedToken.id === token.id;
     drawToken(mapCtx, token, isHovered, isDragged);
   });
 
-  // 5. Calque de Brouillard de Guerre (Fog of War)
-  if (tacticalMapState.fogEnabled && offscreenFogCanvas) {
-    mapCtx.drawImage(offscreenFogCanvas, 0, 0, worldW, worldH);
+  // 5. Calque de Brouillard de Guerre dynamique (occulté par les murs)
+  if (tacticalMapState.fogEnabled) {
+    rebuildFogCanvas();
+    if (offscreenFogCanvas) {
+      mapCtx.drawImage(offscreenFogCanvas, 0, 0, worldW, worldH);
+    }
+    // Pour le MJ : contours arcaniques du champ de vision des joueurs
+    if (CURRENT_ROLE === 'mj') {
+      drawPlayerVisionOutlines(mapCtx);
+    }
   }
 
   // 6. Prévisualisation en direct lors du tracé de brouillard par le MJ
@@ -3043,7 +3381,642 @@ function renderTacticalMap() {
     mapCtx.restore();
   }
 
+  // 6b. Prévisualisation en direct lors du tracé d'un mur par le MJ
+  if (wallDrawState.isDrawing && CURRENT_ROLE === 'mj') {
+    mapCtx.save();
+    mapCtx.beginPath();
+    mapCtx.moveTo(wallDrawState.startX, wallDrawState.startY);
+    mapCtx.lineTo(wallDrawState.currentX, wallDrawState.currentY);
+    mapCtx.strokeStyle = '#f59e0b';
+    mapCtx.lineWidth = 3.5;
+    mapCtx.setLineDash([8, 4]);
+    mapCtx.shadowColor = '#d97706';
+    mapCtx.shadowBlur = 10;
+    mapCtx.stroke();
+    mapCtx.setLineDash([]);
+
+    // Rivets d'extrémité
+    [ { x: wallDrawState.startX, y: wallDrawState.startY }, { x: wallDrawState.currentX, y: wallDrawState.currentY } ].forEach((pt) => {
+      mapCtx.beginPath();
+      mapCtx.arc(pt.x, pt.y, 5, 0, Math.PI * 2);
+      mapCtx.fillStyle = '#fde047';
+      mapCtx.strokeStyle = '#78350f';
+      mapCtx.lineWidth = 2;
+      mapCtx.fill();
+      mapCtx.stroke();
+    });
+
+    const wallLen = Math.hypot(wallDrawState.currentX - wallDrawState.startX, wallDrawState.currentY - wallDrawState.startY);
+    const midX = (wallDrawState.startX + wallDrawState.currentX) / 2;
+    const midY = (wallDrawState.startY + wallDrawState.currentY) / 2;
+    const wallM = ((wallLen / 50) * 1.5).toFixed(1);
+    drawMapBadge(mapCtx, midX, midY - 14, `✦ Mur : ${wallM} m ✦`, 'rgba(12, 10, 9, 0.94)', '#f59e0b', '#fef08a');
+    mapCtx.restore();
+  }
+
+  // 7. Mesures et Gabarits de Sorts de Zone (AoE) - Visibilité tactique intégrale au premier plan
+  // A. Mesures distantes synchronisées des autres participants
+  remoteMeasurements.forEach((meas) => {
+    if (!meas) return;
+    if (meas.type === 'measure') {
+      drawMeasureLine(mapCtx, meas.startX, meas.startY, meas.currentX, meas.currentY, meas.color || '#38bdf8', true, meas.sender);
+    } else {
+      drawAoETemplate(mapCtx, meas.type, meas.startX, meas.startY, meas.currentX, meas.currentY, true, meas.sender);
+    }
+  });
+
+  // B. Mesure ou Gabarit AoE local actif
+  if (measureState.isMeasuring) {
+    if (measureState.type === 'measure') {
+      drawMeasureLine(mapCtx, measureState.startX, measureState.startY, measureState.currentX, measureState.currentY, '#f59e0b', false, null);
+    } else {
+      drawAoETemplate(mapCtx, measureState.type, measureState.startX, measureState.startY, measureState.currentX, measureState.currentY, false, null);
+    }
+  }
+
   mapCtx.restore();
+}
+
+/**
+ * Calcule la vitesse tactique d'un pion en pixels, mètres et cases
+ */
+function getTokenSpeed(token) {
+  if (!token) return { standardPx: 300, dashPx: 600, standardM: 9.0, dashM: 18.0, cases: 6 };
+  let standardPx = 300; // 9m (6 cases) par défaut
+  if (token.type === 'player') {
+    const char = [...charactersCache.values()].find(
+      (c) => c && (c.slot === token.slot || (token.name && c.name && c.name.toLowerCase() === token.name.toLowerCase()))
+    );
+    if (char) {
+      const race = (char.race || '').toLowerCase();
+      const vocation = (char.class || char.vocation || '').toLowerCase();
+      if (race.includes('nain') || race.includes('halfelin') || race.includes('gnome')) {
+        standardPx = 250; // 7.5m (5 cases)
+      } else if (vocation.includes('voleur') || vocation.includes('rôdeur') || vocation.includes('rodeur')) {
+        standardPx = 350; // 10.5m (7 cases)
+      }
+    }
+  } else if (token.type === 'monster') {
+    if ((token.size || 40) > 60) standardPx = 400; // 12m pour les grands monstres
+  }
+
+  const standardM = (standardPx / 50) * 1.5;
+  const dashPx = standardPx * 2;
+  const dashM = standardM * 2;
+  const cases = standardPx / 50;
+  return { standardPx, dashPx, standardM, dashM, cases };
+}
+
+/**
+ * Dessine un badge informatif orné sur le canvas
+ */
+function drawMapBadge(ctx, x, y, text, bgColor = 'rgba(12, 10, 9, 0.94)', borderColor = '#d4af37', textColor = '#fef08a') {
+  ctx.save();
+  ctx.font = 'bold 11px Cinzel, Georgia, serif';
+  const textWidth = ctx.measureText(text).width;
+  const padX = 10;
+  const w = textWidth + padX * 2;
+  const h = 22;
+  const bx = x - w / 2;
+  const by = y - h / 2;
+
+  ctx.fillStyle = bgColor;
+  ctx.strokeStyle = borderColor;
+  ctx.lineWidth = 1.5;
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+  ctx.shadowBlur = 8;
+
+  ctx.beginPath();
+  const r = 3;
+  if (typeof ctx.roundRect === 'function') {
+    ctx.roundRect(bx, by, w, h, r);
+  } else {
+    ctx.rect(bx, by, w, h);
+  }
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = textColor;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, x, y + 1);
+  ctx.restore();
+}
+
+/**
+ * Dessine le halo de portée de déplacement (au survol ou lors du glisser-déposer)
+ */
+function drawMovementHalo(ctx, token, isHover, isDrag, dragStart) {
+  if (!token) return;
+  const speed = getTokenSpeed(token);
+  ctx.save();
+
+  if (isHover && !isDrag) {
+    const pulse = Math.sin(Date.now() / 300) * 3;
+    const r = speed.standardPx + pulse;
+
+    // Disque semi-transparent arcanique au sol
+    ctx.beginPath();
+    ctx.arc(token.x, token.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.08)';
+    ctx.fill();
+
+    // Bordure en pointillés magiques
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 1.8;
+    ctx.setLineDash([8, 6]);
+    ctx.shadowColor = '#0284c7';
+    ctx.shadowBlur = 10;
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.shadowBlur = 0;
+
+    // Repères cardinaux runiques
+    ctx.strokeStyle = '#7dd3fc';
+    ctx.lineWidth = 2;
+    [0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2].forEach((ang) => {
+      const cx = token.x + Math.cos(ang) * r;
+      const cy = token.y + Math.sin(ang) * r;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+      ctx.fillStyle = '#fde047';
+      ctx.fill();
+      ctx.stroke();
+    });
+
+    // Badge d'information de portée
+    drawMapBadge(
+      ctx,
+      token.x,
+      token.y - r - 15,
+      `✦ Portée Mouvement : ${speed.standardM.toFixed(1)} m (${speed.cases} cases) ✦`,
+      'rgba(12, 10, 9, 0.94)',
+      '#38bdf8',
+      '#e0f2fe'
+    );
+  } else if (isDrag && dragStart) {
+    // 1. Cercle fantôme de départ
+    ctx.beginPath();
+    ctx.arc(dragStart.x, dragStart.y, (token.size || 40) / 2, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(212, 175, 55, 0.7)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 2. Cercle de mouvement standard (ex. 9m / 300px)
+    ctx.beginPath();
+    ctx.arc(dragStart.x, dragStart.y, speed.standardPx, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(16, 185, 129, 0.07)';
+    ctx.fill();
+    ctx.strokeStyle = '#10b981';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 5]);
+    ctx.stroke();
+
+    // 3. Cercle d'action Course / Dash (ex. 18m / 600px)
+    ctx.beginPath();
+    ctx.arc(dragStart.x, dragStart.y, speed.dashPx, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(245, 158, 11, 0.04)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(245, 158, 11, 0.6)';
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([10, 8]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 4. Ligne de trajectoire dynamique
+    const dist = Math.hypot(token.x - dragStart.x, token.y - dragStart.y);
+    const distM = (dist / 50) * 1.5;
+    const distCases = dist / 50;
+
+    let trajColor = '#10b981';
+    let trajText = `Mouvement : ${distM.toFixed(1)} m / ${speed.standardM.toFixed(1)} m (${distCases.toFixed(1)} c)`;
+    let trajBorder = '#10b981';
+
+    if (dist > speed.dashPx) {
+      trajColor = '#ef4444';
+      trajBorder = '#dc2626';
+      trajText = `Dépassement : ${distM.toFixed(1)} m (Max Course: ${speed.dashM.toFixed(1)} m) !`;
+    } else if (dist > speed.standardPx) {
+      trajColor = '#f59e0b';
+      trajBorder = '#d97706';
+      trajText = `Action Course (Dash) : ${distM.toFixed(1)} m / ${speed.dashM.toFixed(1)} m`;
+    }
+
+    // Trait de trajectoire pointillé
+    ctx.beginPath();
+    ctx.moveTo(dragStart.x, dragStart.y);
+    ctx.lineTo(token.x, token.y);
+    ctx.strokeStyle = trajColor;
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([6, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Badge au milieu de la trajectoire
+    const midX = (dragStart.x + token.x) / 2;
+    const midY = (dragStart.y + token.y) / 2;
+    drawMapBadge(
+      ctx,
+      midX,
+      midY - 14,
+      trajText,
+      'rgba(12, 10, 9, 0.94)',
+      trajBorder,
+      '#ffffff'
+    );
+  }
+
+  ctx.restore();
+}
+
+/**
+ * Dessine la réglette de mesure avec graduations et portée numérique
+ */
+function drawMeasureLine(ctx, startX, startY, endX, endY, color = '#f59e0b', isRemote = false, senderName = '') {
+  const distPx = Math.hypot(endX - startX, endY - startY);
+  if (distPx < 3) return;
+
+  const cases = distPx / 50;
+  const metres = cases * 1.5;
+  const feet = cases * 5;
+
+  ctx.save();
+
+  // Ombre portée
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+  ctx.shadowBlur = 6;
+
+  // Ligne centrale principale
+  ctx.beginPath();
+  ctx.moveTo(startX, startY);
+  ctx.lineTo(endX, endY);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  // Halo central
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Vecteur unitaire et normale
+  const ux = (endX - startX) / distPx;
+  const uy = (endY - startY) / distPx;
+  const nx = -uy;
+  const ny = ux;
+
+  // Graduations tous les 50px (1 case = 1.5m)
+  ctx.lineWidth = 1.5;
+  for (let s = 50; s < distPx; s += 50) {
+    const px = startX + ux * s;
+    const py = startY + uy * s;
+    const isMajor = (s % 100 === 0);
+    const tickLen = isMajor ? 7 : 4;
+    ctx.strokeStyle = isMajor ? '#fde047' : color;
+    ctx.beginPath();
+    ctx.moveTo(px - nx * tickLen, py - ny * tickLen);
+    ctx.lineTo(px + nx * tickLen, py + ny * tickLen);
+    ctx.stroke();
+  }
+
+  // Point de départ runique
+  ctx.beginPath();
+  ctx.arc(startX, startY, 5, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Flèche à l'extrémité
+  const arrowSize = 10;
+  ctx.beginPath();
+  ctx.moveTo(endX, endY);
+  ctx.lineTo(
+    endX - ux * arrowSize + nx * (arrowSize * 0.55),
+    endY - uy * arrowSize + ny * (arrowSize * 0.55)
+  );
+  ctx.lineTo(
+    endX - ux * arrowSize - nx * (arrowSize * 0.55),
+    endY - uy * arrowSize - ny * (arrowSize * 0.55)
+  );
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+
+  ctx.shadowBlur = 0;
+
+  // Badge numérique
+  const midX = (startX + endX) / 2;
+  const midY = (startY + endY) / 2;
+  const badgeLabel = isRemote && senderName
+    ? `${senderName} : ${metres.toFixed(1)} m | ${Math.round(feet)} ft (${cases.toFixed(1)} c)`
+    : `${metres.toFixed(1)} m | ${Math.round(feet)} ft (${cases.toFixed(1)} cases)`;
+
+  drawMapBadge(
+    ctx,
+    midX,
+    midY - 16,
+    badgeLabel,
+    'rgba(12, 10, 9, 0.94)',
+    color,
+    '#fef08a'
+  );
+
+  ctx.restore();
+}
+
+/**
+ * Vérifie si un pion est dans un cercle AoE
+ */
+function isTokenInCircle(token, cx, cy, radius) {
+  const tokenRadius = (token.size || 40) / 2;
+  const dist = Math.hypot(token.x - cx, token.y - cy);
+  return dist <= radius + tokenRadius;
+}
+
+/**
+ * Vérifie si un pion est dans un cône AoE (angle standard de 53°)
+ */
+function isTokenInCone(token, ox, oy, tx, ty) {
+  const length = Math.hypot(tx - ox, ty - oy);
+  if (length < 5) return false;
+  const tokenRadius = (token.size || 40) / 2;
+  const dist = Math.hypot(token.x - ox, token.y - oy);
+  if (dist > length + tokenRadius) return false;
+  if (dist <= tokenRadius) return true;
+
+  const halfSpread = 0.4636; // 26.565°
+  const aimAngle = Math.atan2(ty - oy, tx - ox);
+  const tokenAngle = Math.atan2(token.y - oy, token.x - ox);
+
+  let diff = Math.abs(aimAngle - tokenAngle);
+  while (diff > Math.PI) diff = Math.abs(diff - Math.PI * 2);
+
+  const angleMargin = Math.asin(Math.min(1, tokenRadius / dist));
+  return diff <= halfSpread + angleMargin;
+}
+
+/**
+ * Vérifie si un pion est dans une ligne AoE
+ */
+function isTokenInBeam(token, x1, y1, x2, y2, beamWidth = 50) {
+  const tokenRadius = (token.size || 40) / 2;
+  const halfW = beamWidth / 2;
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq < 1) return Math.hypot(token.x - x1, token.y - y1) <= halfW + tokenRadius;
+
+  const t = Math.max(0, Math.min(1, ((token.x - x1) * dx + (token.y - y1) * dy) / lenSq));
+  const projX = x1 + t * dx;
+  const projY = y1 + t * dy;
+  const dist = Math.hypot(token.x - projX, token.y - projY);
+
+  return dist <= halfW + tokenRadius;
+}
+
+/**
+ * Dessine un réticule de ciblage animé sur un pion pris dans une zone de sortilège
+ */
+function drawAoETargetReticle(ctx, token) {
+  const radius = (token.size || 40) / 2;
+  ctx.save();
+  const pulse = Math.sin(Date.now() / 180) * 2;
+
+  // Anneau rougeoyant de cible
+  ctx.beginPath();
+  ctx.arc(token.x, token.y, radius + 7 + pulse, 0, Math.PI * 2);
+  ctx.strokeStyle = '#ef4444';
+  ctx.lineWidth = 2.5;
+  ctx.shadowColor = '#dc2626';
+  ctx.shadowBlur = 14;
+  ctx.stroke();
+
+  // Encoches en croix
+  const notchLen = 6;
+  const notchDist = radius + 9 + pulse;
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#fca5a5';
+  [0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2].forEach((angle) => {
+    const nx = token.x + Math.cos(angle) * notchDist;
+    const ny = token.y + Math.sin(angle) * notchDist;
+    ctx.beginPath();
+    ctx.moveTo(nx, ny);
+    ctx.lineTo(nx + Math.cos(angle) * notchLen, ny + Math.sin(angle) * notchLen);
+    ctx.stroke();
+  });
+
+  // Insigne de cible
+  ctx.font = 'bold 9px Cinzel, Georgia, serif';
+  ctx.fillStyle = '#fee2e2';
+  ctx.shadowColor = '#dc2626';
+  ctx.shadowBlur = 6;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText('✦ CIBLE TOUCHÉE ✦', token.x, token.y - radius - 8);
+  ctx.restore();
+}
+
+/**
+ * Dessine un gabarit de sortilège de zone (AoE) avec détection et marquage des cibles
+ */
+function drawAoETemplate(ctx, type, startX, startY, endX, endY, isRemote = false, senderName = '') {
+  const distPx = Math.hypot(endX - startX, endY - startY);
+  if (distPx < 5) return;
+
+  const tokens = tacticalMapState.tokens || [];
+  const caughtTokens = [];
+
+  ctx.save();
+
+  if (type === 'aoe-circle') {
+    const radius = distPx;
+    const cases = radius / 50;
+    const metres = cases * 1.5;
+    const feet = cases * 5;
+
+    // Détection des cibles dans le cercle
+    tokens.forEach((t) => {
+      if (CURRENT_ROLE !== 'mj' && tacticalMapState.fogEnabled && t.type === 'monster' && !isTokenVisibleToPlayers(t)) return;
+      if (isTokenInCircle(t, startX, startY, radius)) {
+        caughtTokens.push(t);
+      }
+    });
+
+    // Remplissage radial dégradé arcanique
+    const grad = ctx.createRadialGradient(startX, startY, radius * 0.1, startX, startY, radius);
+    grad.addColorStop(0, 'rgba(245, 158, 11, 0.38)');
+    grad.addColorStop(0.7, 'rgba(239, 68, 68, 0.22)');
+    grad.addColorStop(1, 'rgba(185, 28, 28, 0.12)');
+
+    ctx.beginPath();
+    ctx.arc(startX, startY, radius, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Bordure dorée enflammée
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = '#d97706';
+    ctx.shadowBlur = 12;
+    ctx.stroke();
+
+    // Anneau d'énergie extérieur pointillé
+    ctx.beginPath();
+    ctx.arc(startX, startY, radius + 3, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(253, 224, 71, 0.7)';
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([8, 6]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.shadowBlur = 0;
+
+    // Rayon depuis le centre vers le curseur
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(endX, endY);
+    ctx.strokeStyle = 'rgba(254, 240, 138, 0.7)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Badge
+    const senderPrefix = isRemote && senderName ? `[${senderName}] ` : '';
+    const badgeText = `${senderPrefix}Sphère AoE • Rayon : ${metres.toFixed(1)} m | ${Math.round(feet)} ft (${cases.toFixed(1)} c)`;
+    drawMapBadge(ctx, startX, startY - radius - 16, badgeText, 'rgba(12, 10, 9, 0.94)', '#f59e0b', '#fef08a');
+
+  } else if (type === 'aoe-cone') {
+    const length = distPx;
+    const cases = length / 50;
+    const metres = cases * 1.5;
+    const feet = cases * 5;
+    const aimAngle = Math.atan2(endY - startY, endX - startX);
+    const halfSpread = 0.4636; // 26.56° (angle total = 53.13°)
+
+    // Détection des cibles dans le cône
+    tokens.forEach((t) => {
+      if (CURRENT_ROLE !== 'mj' && tacticalMapState.fogEnabled && t.type === 'monster' && !isTokenVisibleToPlayers(t)) return;
+      if (isTokenInCone(t, startX, startY, endX, endY)) {
+        caughtTokens.push(t);
+      }
+    });
+
+    // Forme en éventail
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.arc(startX, startY, length, aimAngle - halfSpread, aimAngle + halfSpread);
+    ctx.closePath();
+
+    // Remplissage souffle arcanique
+    const grad = ctx.createRadialGradient(startX, startY, length * 0.1, startX, startY, length);
+    grad.addColorStop(0, 'rgba(56, 189, 248, 0.38)');
+    grad.addColorStop(0.7, 'rgba(2, 132, 199, 0.22)');
+    grad.addColorStop(1, 'rgba(12, 74, 110, 0.12)');
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Bordure
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = '#0284c7';
+    ctx.shadowBlur = 12;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Ligne médiane de visée
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(endX, endY);
+    ctx.strokeStyle = 'rgba(224, 242, 254, 0.6)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Badge
+    const senderPrefix = isRemote && senderName ? `[${senderName}] ` : '';
+    const badgeText = `${senderPrefix}Cône AoE • Portée : ${metres.toFixed(1)} m | ${Math.round(feet)} ft (${cases.toFixed(1)} c)`;
+    drawMapBadge(ctx, endX, endY - 16, badgeText, 'rgba(12, 10, 9, 0.94)', '#38bdf8', '#e0f2fe');
+
+  } else if (type === 'aoe-line') {
+    const length = distPx;
+    const cases = length / 50;
+    const metres = cases * 1.5;
+    const feet = cases * 5;
+    const beamWidth = 50; // 1 case = 1.5m
+
+    // Détection des cibles dans la ligne
+    tokens.forEach((t) => {
+      if (CURRENT_ROLE !== 'mj' && tacticalMapState.fogEnabled && t.type === 'monster' && !isTokenVisibleToPlayers(t)) return;
+      if (isTokenInBeam(t, startX, startY, endX, endY, beamWidth)) {
+        caughtTokens.push(t);
+      }
+    });
+
+    const angle = Math.atan2(endY - startY, endX - startX);
+    const halfW = beamWidth / 2;
+
+    ctx.save();
+    ctx.translate(startX, startY);
+    ctx.rotate(angle);
+
+    // Remplissage faisceau électrique
+    ctx.fillStyle = 'rgba(168, 85, 247, 0.24)';
+    ctx.fillRect(0, -halfW, length, beamWidth);
+
+    ctx.strokeStyle = '#c084fc';
+    ctx.lineWidth = 2.2;
+    ctx.shadowColor = '#9333ea';
+    ctx.shadowBlur = 12;
+    ctx.strokeRect(0, -halfW, length, beamWidth);
+
+    // Ligne médiane
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(length, 0);
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 4]);
+    ctx.stroke();
+
+    ctx.restore();
+
+    // Badge
+    const midX = (startX + endX) / 2;
+    const midY = (startY + endY) / 2;
+    const senderPrefix = isRemote && senderName ? `[${senderName}] ` : '';
+    const badgeText = `${senderPrefix}Ligne AoE • Longueur : ${metres.toFixed(1)} m | ${Math.round(feet)} ft (${cases.toFixed(1)} c)`;
+    drawMapBadge(ctx, midX, midY - 20, badgeText, 'rgba(12, 10, 9, 0.94)', '#c084fc', '#f3e8ff');
+  }
+
+  // Marquer toutes les cibles touchées par le gabarit
+  caughtTokens.forEach((token) => {
+    drawAoETargetReticle(ctx, token);
+  });
+
+  // Badge récapitulatif des cibles affectées
+  if (caughtTokens.length > 0) {
+    const plural = caughtTokens.length > 1;
+    drawMapBadge(
+      ctx,
+      startX,
+      startY + 24,
+      `✦ ${caughtTokens.length} ${plural ? 'Cibles Touchées' : 'Cible Touchée'} ✦`,
+      'rgba(69, 10, 10, 0.96)',
+      '#ef4444',
+      '#fecaca'
+    );
+  }
+
+  ctx.restore();
 }
 
 /**
@@ -3148,13 +4121,217 @@ function drawToken(ctx, token, isHovered, isDragged) {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Petit insigne "⚔️ TOUR ACTIF" au-dessus du pion
+    // Insigne "TOUR ACTIF" au-dessus du pion
     ctx.font = 'bold 9px Cinzel, Georgia, serif';
     ctx.fillStyle = '#fde047';
     ctx.shadowColor = '#d4af37';
     ctx.shadowBlur = 8;
     ctx.textAlign = 'center';
-    ctx.fillText('⚔️ TOUR ACTIF', token.x, token.y - radius - 7);
+    ctx.fillText('✦ TOUR ACTIF ✦', token.x, token.y - radius - 7);
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+/**
+ * Teste si trois points forment un virage dans le sens trigonométrique
+ */
+function ccw(ax, ay, bx, by, cx, cy) {
+  return (cy - ay) * (bx - ax) > (by - ay) * (cx - ax);
+}
+
+/**
+ * Teste si deux segments de droite (x1, y1)-(x2, y2) et (x3, y3)-(x4, y4) se coupent
+ */
+function doSegmentsIntersect(x1, y1, x2, y2, x3, y3, x4, y4) {
+  return (
+    ccw(x1, y1, x3, y3, x4, y4) !== ccw(x2, y2, x3, y3, x4, y4) &&
+    ccw(x1, y1, x2, y2, x3, y3) !== ccw(x1, y1, x2, y2, x4, y4)
+  );
+}
+
+/**
+ * Calcule la distance orthogonale euclidienne entre un point et un segment
+ */
+function distToSegment(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const l2 = dx * dx + dy * dy;
+  if (l2 === 0) return Math.hypot(px - x1, py - y1);
+  let t = ((px - x1) * dx + (py - y1) * dy) / l2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+}
+
+/**
+ * Vérifie si une trajectoire de pion entre (fromX, fromY) et (toX, toY) heurte un mur
+ * Bloque à la fois le franchissement direct et la pénétration du rayon du pion
+ */
+function checkWallCollision(fromX, fromY, toX, toY, tokenRadius = 20) {
+  const walls = tacticalMapState.walls || [];
+  if (!walls.length) return { collided: false };
+
+  const minClearance = Math.max(8, tokenRadius * 0.7);
+
+  for (let i = 0; i < walls.length; i++) {
+    const w = walls[i];
+    if (w.blocksMovement === false) continue;
+
+    // 1. Intersection géométrique de trajectoire
+    if (doSegmentsIntersect(fromX, fromY, toX, toY, w.x1, w.y1, w.x2, w.y2)) {
+      return { collided: true, wall: w };
+    }
+
+    // 2. Collision par proximité (rayon du pion touchant le mur à l'arrivée)
+    const distDest = distToSegment(toX, toY, w.x1, w.y1, w.x2, w.y2);
+    if (distDest < minClearance) {
+      return { collided: true, wall: w };
+    }
+  }
+
+  return { collided: false };
+}
+
+/**
+ * Recherche une extrémité de mur existante pour l'aimantation magnétique (snap)
+ */
+function findSnapEndpoint(x, y, threshold = 18) {
+  const walls = tacticalMapState.walls || [];
+  let best = null;
+  let minDist = threshold;
+
+  for (let i = 0; i < walls.length; i++) {
+    const w = walls[i];
+    const d1 = Math.hypot(x - w.x1, y - w.y1);
+    if (d1 < minDist) {
+      minDist = d1;
+      best = { x: w.x1, y: w.y1 };
+    }
+    const d2 = Math.hypot(x - w.x2, y - w.y2);
+    if (d2 < minDist) {
+      minDist = d2;
+      best = { x: w.x2, y: w.y2 };
+    }
+  }
+
+  if (best) {
+    return { x: best.x, y: best.y, snapped: true };
+  }
+  return { x: Math.round(x), y: Math.round(y), snapped: false };
+}
+
+/**
+ * Trouve le mur le plus proche d'un point (pour la sélection / démolition)
+ */
+function findWallAtPoint(x, y, threshold = 14) {
+  const walls = tacticalMapState.walls || [];
+  let closest = null;
+  let minDist = threshold;
+
+  for (let i = 0; i < walls.length; i++) {
+    const w = walls[i];
+    const d = distToSegment(x, y, w.x1, w.y1, w.x2, w.y2);
+    if (d < minDist) {
+      minDist = d;
+      closest = w;
+    }
+  }
+
+  return closest;
+}
+
+/**
+ * Dessine l'ensemble des murs du donjon sur le canvas
+ */
+function drawWalls(ctx, walls, isGM) {
+  if (!walls || !walls.length) return;
+
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  // 1. Ombre portée et fondation des murs
+  walls.forEach((w) => {
+    const isHovered = hoveredWall && hoveredWall.id === w.id;
+
+    ctx.beginPath();
+    ctx.moveTo(w.x1, w.y1);
+    ctx.lineTo(w.x2, w.y2);
+    ctx.lineWidth = 10;
+    ctx.strokeStyle = isHovered ? 'rgba(239, 68, 68, 0.5)' : 'rgba(0, 0, 0, 0.75)';
+    ctx.shadowColor = isHovered ? '#ef4444' : '#000000';
+    ctx.shadowBlur = isHovered ? 12 : 6;
+    ctx.stroke();
+  });
+
+  // 2. Corps du mur en pierre volcanique / fer forgé
+  walls.forEach((w) => {
+    const isHovered = hoveredWall && hoveredWall.id === w.id;
+
+    ctx.beginPath();
+    ctx.moveTo(w.x1, w.y1);
+    ctx.lineTo(w.x2, w.y2);
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = isHovered ? '#b91c1c' : '#1c1917';
+    ctx.shadowBlur = 0;
+    ctx.stroke();
+
+    // 3. Filet d'ornement métallique / laiton terni
+    ctx.beginPath();
+    ctx.moveTo(w.x1, w.y1);
+    ctx.lineTo(w.x2, w.y2);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = isHovered ? '#fca5a5' : '#78350f';
+    ctx.stroke();
+
+    // 4. Filet central doré fin
+    ctx.beginPath();
+    ctx.moveTo(w.x1, w.y1);
+    ctx.lineTo(w.x2, w.y2);
+    ctx.lineWidth = 0.8;
+    ctx.strokeStyle = isHovered ? '#ffffff' : '#d4af37';
+    ctx.stroke();
+  });
+
+  // 5. Piliers et rivets d'ancrage aux extrémités (Visibles pour le MJ)
+  if (isGM) {
+    walls.forEach((w) => {
+      const isHovered = hoveredWall && hoveredWall.id === w.id;
+      const nodeColor = isHovered ? '#ef4444' : '#d4af37';
+      const nodeBorder = isHovered ? '#fee2e2' : '#78350f';
+
+      [ { x: w.x1, y: w.y1 }, { x: w.x2, y: w.y2 } ].forEach((pt) => {
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = nodeColor;
+        ctx.strokeStyle = nodeBorder;
+        ctx.lineWidth = 1.5;
+        ctx.fill();
+        ctx.stroke();
+      });
+    });
+  }
+
+  // 6. Effet visuel d'impact / blocage de collision actif
+  if (wallCollisionActive && Date.now() - wallCollisionActive.time < 500) {
+    const age = Date.now() - wallCollisionActive.time;
+    const alpha = Math.max(0, 1 - age / 500);
+    const pulseR = 14 + (age / 500) * 12;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(wallCollisionActive.x, wallCollisionActive.y, pulseR, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(239, 68, 68, ${alpha})`;
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = '#dc2626';
+    ctx.shadowBlur = 12;
+    ctx.stroke();
+
+    ctx.font = 'bold 9px Cinzel, Georgia, serif';
+    ctx.fillStyle = `rgba(254, 226, 226, ${alpha})`;
+    ctx.textAlign = 'center';
+    ctx.fillText('✦ MUR INFRANCHISSABLE ✦', wallCollisionActive.x, wallCollisionActive.y - pulseR - 4);
     ctx.restore();
   }
 
@@ -3245,31 +4422,139 @@ function setMapTool(toolName) {
   document.querySelectorAll('.map-tool-btn').forEach((btn) => {
     const isCurrent = btn.getAttribute('data-map-tool') === toolName;
     if (isCurrent) {
-      btn.classList.remove('bg-stone-950', 'text-stone-300', 'border', 'border-stone-800');
-      btn.classList.add('bg-amber-500', 'text-stone-950', 'shadow');
+      btn.classList.add('rpg-btn-gold');
+      btn.classList.remove('rpg-btn-subtle');
     } else {
-      btn.classList.remove('bg-amber-500', 'text-stone-950', 'shadow');
-      btn.classList.add('bg-stone-950', 'text-stone-300', 'border', 'border-stone-800');
+      btn.classList.remove('rpg-btn-gold');
     }
   });
 
-  const notice = document.getElementById('hud-fog-drawing-notice');
-  if (notice) {
-    if (toolName.startsWith('fog-') && CURRENT_ROLE === 'mj') {
-      notice.classList.remove('hidden');
+  // Mise à jour de l'état actif dans les menus déroulants
+  document.querySelectorAll('.rpg-dropdown-item').forEach((item) => {
+    const isCurrent = item.getAttribute('data-map-tool') === toolName;
+    if (isCurrent) {
+      item.classList.add('active');
     } else {
-      notice.classList.add('hidden');
+      item.classList.remove('active');
+    }
+  });
+
+  // Mise en surbrillance du bouton déclencheur de la catégorie active
+  document.querySelectorAll('.rpg-dropdown-container').forEach((container) => {
+    const hasActiveTool = container.querySelector(`.rpg-dropdown-item[data-map-tool="${toolName}"]`);
+    const trigger = container.querySelector('.rpg-dropdown-trigger');
+    if (trigger) {
+      if (hasActiveTool) {
+        trigger.classList.add('rpg-btn-gold');
+      } else {
+        trigger.classList.remove('rpg-btn-gold');
+      }
+    }
+  });
+
+  // Badge d'outil actif dans la barre
+  const activeToolName = document.getElementById('hud-active-tool-name');
+  if (activeToolName) {
+    const toolNames = {
+      'select': 'Déplacer Pions',
+      'pan': 'Vue Caméra',
+      'measure': 'Réglette Tactique',
+      'aoe-circle': 'Sphère AoE',
+      'aoe-cone': 'Cône AoE',
+      'aoe-line': 'Ligne AoE',
+      'wall': 'Tracer Murs',
+      'wall-delete': 'Démolir Mur',
+      'fog-rect': 'Révéler Rect',
+      'fog-circle': 'Révéler Cercle'
+    };
+    activeToolName.textContent = toolNames[toolName] || toolName;
+  }
+
+  const fogNotice = document.getElementById('hud-fog-drawing-notice');
+  if (fogNotice) {
+    if (toolName.startsWith('fog-') && CURRENT_ROLE === 'mj') {
+      fogNotice.classList.remove('hidden');
+    } else {
+      fogNotice.classList.add('hidden');
+    }
+  }
+
+  const measureNotice = document.getElementById('hud-measure-notice');
+  if (measureNotice) {
+    if (toolName === 'measure') {
+      measureNotice.textContent = '✦ Réglette Tactique : Cliquez-glissez pour mesurer les portées ✦';
+      measureNotice.classList.remove('hidden');
+    } else if (toolName === 'aoe-circle') {
+      measureNotice.textContent = '✦ Sphère AoE (Boule de feu) : Cliquez-glissez pour ajuster le rayon d\'impact ✦';
+      measureNotice.classList.remove('hidden');
+    } else if (toolName === 'aoe-cone') {
+      measureNotice.textContent = '✦ Cône AoE (Souffle) : Cliquez à l\'origine et étirez pour orienter le souffle ✦';
+      measureNotice.classList.remove('hidden');
+    } else if (toolName === 'aoe-line') {
+      measureNotice.textContent = '✦ Ligne AoE (Foudre) : Cliquez et étirez pour tracer la trajectoire ✦';
+      measureNotice.classList.remove('hidden');
+    } else if (toolName === 'wall') {
+      measureNotice.textContent = '✦ Outil Murs (MJ) : Cliquez-glissez pour ériger un mur infranchissable (aimantation aux sommets) ✦';
+      measureNotice.classList.remove('hidden');
+    } else if (toolName === 'wall-delete') {
+      measureNotice.textContent = '✦ Démolition de Mur (MJ) : Cliquez sur un segment de mur pour le démolir ✦';
+      measureNotice.classList.remove('hidden');
+    } else {
+      measureNotice.classList.add('hidden');
     }
   }
 
   if (!mapCanvas) return;
   if (toolName === 'pan') {
     mapCanvas.style.cursor = 'grab';
-  } else if (toolName.startsWith('fog-')) {
+  } else if (toolName.startsWith('fog-') || toolName === 'measure' || toolName.startsWith('aoe-') || toolName === 'wall') {
     mapCanvas.style.cursor = 'crosshair';
+  } else if (toolName === 'wall-delete') {
+    mapCanvas.style.cursor = 'pointer';
   } else {
     mapCanvas.style.cursor = 'default';
   }
+  requestMapRender();
+}
+
+/**
+ * Initialise l'ouverture, fermeture et interaction des menus déroulants tactiques
+ */
+function initDropdowns() {
+  document.querySelectorAll('.rpg-dropdown-trigger').forEach((trigger) => {
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const container = trigger.closest('.rpg-dropdown-container');
+      if (!container) return;
+      const wasOpen = container.classList.contains('open');
+
+      // Fermer tous les menus déroulants ouverts
+      document.querySelectorAll('.rpg-dropdown-container.open').forEach((c) => {
+        c.classList.remove('open');
+      });
+
+      if (!wasOpen) {
+        container.classList.add('open');
+      }
+    });
+  });
+
+  // Fermer le menu lors du clic sur un item
+  document.querySelectorAll('.rpg-dropdown-item').forEach((item) => {
+    item.addEventListener('click', () => {
+      const container = item.closest('.rpg-dropdown-container');
+      if (container) container.classList.remove('open');
+    });
+  });
+
+  // Fermer les menus lors d'un clic en dehors
+  window.addEventListener('click', (e) => {
+    if (!e.target.closest('.rpg-dropdown-container')) {
+      document.querySelectorAll('.rpg-dropdown-container.open').forEach((c) => {
+        c.classList.remove('open');
+      });
+    }
+  });
 }
 
 /**
@@ -3295,6 +4580,9 @@ function initTacticalMapUI() {
 
   resizeMapCanvas();
   window.addEventListener('resize', resizeMapCanvas);
+
+  // Initialisation des menus déroulants par catégorie
+  initDropdowns();
 
   // 1. Outils de la barre supérieure
   document.querySelectorAll('.map-tool-btn').forEach((btn) => {
@@ -3337,26 +4625,63 @@ function initTacticalMapUI() {
     });
   }
 
-  // 2. Événements Souris sur le Canvas
-  mapCanvas.addEventListener('contextmenu', (e) => {
-    e.preventDefault();
-    // Clic droit par le MJ sur n'importe quel pion : proposition de suppression rapide
-    if (CURRENT_ROLE === 'mj' && hoveredToken) {
-      const isPlayer = hoveredToken.type === 'player';
-      const promptMsg = isPlayer
-        ? `Voulez-vous retirer le pion de ${hoveredToken.name} de la carte ?\n(Vous pourrez le ré-invoquer à tout moment via le bouton "+ Pion Joueur")`
-        : `Voulez-vous retirer le monstre "${hoveredToken.name}" de la carte ?`;
-
-      if (confirm(promptMsg)) {
-        const tokenId = hoveredToken.id;
-        socket.emit('map:remove_token', { roomId: CURRENT_ROOM, tokenId, role: CURRENT_ROLE }, (res) => {
+  // Réinitialiser les murs (MJ)
+  const btnClearWalls = document.getElementById('btn-clear-walls');
+  if (btnClearWalls) {
+    btnClearWalls.addEventListener('click', () => {
+      if (CURRENT_ROLE !== 'mj' || !CURRENT_ROOM) return;
+      if (confirm('Voulez-vous abattre tous les murs de la carte ? Les déplacements redeviendront libres.')) {
+        socket.emit('map:clear_walls', { roomId: CURRENT_ROOM, role: CURRENT_ROLE }, (res) => {
           if (res?.success) {
-            tacticalMapState.tokens = tacticalMapState.tokens.filter((t) => t.id !== tokenId);
-            hoveredToken = null;
-            hideMapTooltip();
+            tacticalMapState.walls = [];
+            hoveredWall = null;
             requestMapRender();
           }
         });
+      }
+    });
+  }
+
+  // 2. Événements Souris sur le Canvas
+  mapCanvas.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    if (CURRENT_ROLE === 'mj') {
+      const { x: worldX, y: worldY } = screenToWorld(e.clientX, e.clientY);
+
+      // Clic droit par le MJ sur n'importe quel pion : proposition de suppression rapide
+      if (hoveredToken) {
+        const isPlayer = hoveredToken.type === 'player';
+        const promptMsg = isPlayer
+          ? `Voulez-vous retirer le pion de ${hoveredToken.name} de la carte ?\n(Vous pourrez le ré-invoquer à tout moment via le bouton "+ Pion Joueur")`
+          : `Voulez-vous retirer le monstre "${hoveredToken.name}" de la carte ?`;
+
+        if (confirm(promptMsg)) {
+          const tokenId = hoveredToken.id;
+          socket.emit('map:remove_token', { roomId: CURRENT_ROOM, tokenId, role: CURRENT_ROLE }, (res) => {
+            if (res?.success) {
+              tacticalMapState.tokens = (tacticalMapState.tokens || []).filter((t) => t.id !== tokenId);
+              hoveredToken = null;
+              hideMapTooltip();
+              requestMapRender();
+            }
+          });
+        }
+        return;
+      }
+
+      // Clic droit par le MJ sur un mur : démolition rapide
+      const clickedWall = findWallAtPoint(worldX, worldY);
+      if (clickedWall) {
+        if (confirm('Voulez-vous abattre ce segment de mur ?')) {
+          socket.emit('map:remove_wall', { roomId: CURRENT_ROOM, wallId: clickedWall.id, role: CURRENT_ROLE }, (res) => {
+            if (res?.success) {
+              tacticalMapState.walls = (tacticalMapState.walls || []).filter((w) => w.id !== clickedWall.id);
+              hoveredWall = null;
+              requestMapRender();
+            }
+          });
+        }
+        return;
       }
     }
   });
@@ -3374,6 +4699,57 @@ function initTacticalMapUI() {
     }
 
     if (e.button === 0) {
+      // Outils de tracé de murs (MJ uniquement)
+      if (mapActiveTool === 'wall' && CURRENT_ROLE === 'mj') {
+        const snap = findSnapEndpoint(worldX, worldY);
+        wallDrawState.isDrawing = true;
+        wallDrawState.startX = snap.x;
+        wallDrawState.startY = snap.y;
+        wallDrawState.currentX = snap.x;
+        wallDrawState.currentY = snap.y;
+        requestMapRender();
+        return;
+      }
+
+      // Outil de démolition de mur (MJ uniquement)
+      if (mapActiveTool === 'wall-delete' && CURRENT_ROLE === 'mj') {
+        const targetWall = findWallAtPoint(worldX, worldY);
+        if (targetWall && CURRENT_ROOM) {
+          socket.emit('map:remove_wall', { roomId: CURRENT_ROOM, wallId: targetWall.id, role: CURRENT_ROLE }, (res) => {
+            if (res?.success) {
+              tacticalMapState.walls = (tacticalMapState.walls || []).filter((w) => w.id !== targetWall.id);
+              hoveredWall = null;
+              requestMapRender();
+            }
+          });
+        }
+        return;
+      }
+
+      // Outils de mesure et de gabarits de sorts AoE
+      if (mapActiveTool === 'measure' || mapActiveTool === 'aoe-circle' || mapActiveTool === 'aoe-cone' || mapActiveTool === 'aoe-line') {
+        measureState.isMeasuring = true;
+        measureState.type = mapActiveTool;
+        measureState.startX = worldX;
+        measureState.startY = worldY;
+        measureState.currentX = worldX;
+        measureState.currentY = worldY;
+
+        // Aimantation au centre d'un pion proche
+        const tokens = tacticalMapState.tokens || [];
+        for (let i = tokens.length - 1; i >= 0; i--) {
+          const t = tokens[i];
+          const radius = (t.size || 40) / 2;
+          if (Math.hypot(worldX - t.x, worldY - t.y) <= radius + 12) {
+            measureState.startX = t.x;
+            measureState.startY = t.y;
+            break;
+          }
+        }
+        requestMapRender();
+        return;
+      }
+
       // Outil Sélection / Déplacement de pions
       if (mapActiveTool === 'select') {
         const tokens = tacticalMapState.tokens || [];
@@ -3391,6 +4767,11 @@ function initTacticalMapUI() {
         }
 
         if (clickedToken) {
+          if (CURRENT_ROLE !== 'mj' && tacticalMapState.fogEnabled && clickedToken.type === 'monster') {
+            if (!isTokenVisibleToPlayers(clickedToken)) {
+              return;
+            }
+          }
           if (canUserMoveToken(clickedToken)) {
             draggedToken = clickedToken;
             dragTokenInitialPos = { x: clickedToken.x, y: clickedToken.y };
@@ -3436,13 +4817,34 @@ function initTacticalMapUI() {
       return;
     }
 
-    // 2. Déplacement d'un pion actif (mouvement totalement libre et continu)
+    // 2. Déplacement d'un pion actif avec détection physique de collision contre les murs
     if (draggedToken) {
       const targetX = worldX - dragOffset.x;
       const targetY = worldY - dragOffset.y;
+      const tokenRadius = (draggedToken.size || 40) / 2;
 
-      draggedToken.x = targetX;
-      draggedToken.y = targetY;
+      // Détection de collision physique contre les murs (joueurs ET monstres bloqués)
+      const collision = checkWallCollision(draggedToken.x, draggedToken.y, targetX, targetY, tokenRadius);
+
+      if (!collision.collided) {
+        draggedToken.x = targetX;
+        draggedToken.y = targetY;
+      } else {
+        // Glissement le long des parois (axe X)
+        const slideX = checkWallCollision(draggedToken.x, draggedToken.y, targetX, draggedToken.y, tokenRadius);
+        if (!slideX.collided) {
+          draggedToken.x = targetX;
+        } else {
+          // Glissement le long des parois (axe Y)
+          const slideY = checkWallCollision(draggedToken.x, draggedToken.y, draggedToken.x, targetY, tokenRadius);
+          if (!slideY.collided) {
+            draggedToken.y = targetY;
+          } else {
+            // Mouvement totalement bloqué par la paroi
+            wallCollisionActive = { x: targetX, y: targetY, time: Date.now() };
+          }
+        }
+      }
 
       // Émission throttled à ~30ms pour un suivi fluide côté clients distants sans saturer la bande passante
       const now = Date.now();
@@ -3451,8 +4853,8 @@ function initTacticalMapUI() {
         socket.emit('map:move_token', {
           roomId: CURRENT_ROOM,
           tokenId: draggedToken.id,
-          x: targetX,
-          y: targetY,
+          x: draggedToken.x,
+          y: draggedToken.y,
           role: CURRENT_ROLE
         });
       }
@@ -3461,7 +4863,33 @@ function initTacticalMapUI() {
       return;
     }
 
-    // 3. Tracé de brouillard actif
+    // 3. Mesure ou Gabarit AoE actif
+    if (measureState.isMeasuring) {
+      measureState.currentX = worldX;
+      measureState.currentY = worldY;
+
+      // Émission throttled à ~35ms pour le suivi en direct chez les autres joueurs
+      const now = Date.now();
+      if (now - lastMeasureEmitTime > 35 && CURRENT_ROOM) {
+        lastMeasureEmitTime = now;
+        socket.emit('map:measure', {
+          roomId: CURRENT_ROOM,
+          type: measureState.type,
+          startX: measureState.startX,
+          startY: measureState.startY,
+          currentX: measureState.currentX,
+          currentY: measureState.currentY,
+          sender: CURRENT_USER_NAME || (CURRENT_ROLE === 'mj' ? 'Maître du Jeu' : 'Joueur'),
+          color: mySelectedColor || (CURRENT_ROLE === 'mj' ? '#f59e0b' : '#38bdf8'),
+          isMJ: CURRENT_ROLE === 'mj'
+        });
+      }
+
+      requestMapRender();
+      return;
+    }
+
+    // 4. Tracé de brouillard actif (MJ)
     if (fogDrawState.isDrawing && CURRENT_ROLE === 'mj') {
       fogDrawState.currentX = worldX;
       fogDrawState.currentY = worldY;
@@ -3469,7 +4897,32 @@ function initTacticalMapUI() {
       return;
     }
 
-    // 4. Détection du survol de pion
+    // 4b. Tracé de mur actif (MJ)
+    if (wallDrawState.isDrawing && CURRENT_ROLE === 'mj') {
+      const snap = findSnapEndpoint(worldX, worldY);
+      wallDrawState.currentX = snap.x;
+      wallDrawState.currentY = snap.y;
+      requestMapRender();
+      return;
+    }
+
+    // 5. Détection du survol d'éléments interactifs
+    // A. Survol en mode Détection / Démolition de Mur (MJ)
+    if (CURRENT_ROLE === 'mj' && mapActiveTool === 'wall-delete') {
+      const prevHover = hoveredWall;
+      hoveredWall = findWallAtPoint(worldX, worldY);
+      if (hoveredWall !== prevHover) requestMapRender();
+      mapCanvas.style.cursor = hoveredWall ? 'pointer' : 'crosshair';
+      return;
+    }
+
+    // B. Survol en mode Tracé de Mur (MJ avec aimantation)
+    if (CURRENT_ROLE === 'mj' && mapActiveTool === 'wall') {
+      const snap = findSnapEndpoint(worldX, worldY);
+      mapCanvas.style.cursor = snap.snapped ? 'copy' : 'crosshair';
+    }
+
+    // C. Détection du survol de pion
     const rect = mapCanvas.getBoundingClientRect();
     if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
       const tokens = tacticalMapState.tokens || [];
@@ -3486,16 +4939,30 @@ function initTacticalMapUI() {
       }
 
       if (foundToken) {
+        if (CURRENT_ROLE !== 'mj' && tacticalMapState.fogEnabled && foundToken.type === 'monster') {
+          if (!isTokenVisibleToPlayers(foundToken)) {
+            foundToken = null;
+          }
+        }
+      }
+
+      if (foundToken) {
         hoveredToken = foundToken;
-        mapCanvas.style.cursor = canUserMoveToken(foundToken) ? 'grab' : 'pointer';
+        if (mapActiveTool === 'measure' || mapActiveTool.startsWith('aoe-') || mapActiveTool === 'wall') {
+          mapCanvas.style.cursor = 'crosshair';
+        } else {
+          mapCanvas.style.cursor = canUserMoveToken(foundToken) ? 'grab' : 'pointer';
+        }
         showMapTooltip(foundToken, e.clientX, e.clientY);
       } else {
         hoveredToken = null;
         hideMapTooltip();
         if (mapActiveTool === 'pan') {
           mapCanvas.style.cursor = 'grab';
-        } else if (mapActiveTool.startsWith('fog-')) {
+        } else if (mapActiveTool.startsWith('fog-') || mapActiveTool === 'measure' || mapActiveTool.startsWith('aoe-') || mapActiveTool === 'wall') {
           mapCanvas.style.cursor = 'crosshair';
+        } else if (mapActiveTool === 'wall-delete') {
+          mapCanvas.style.cursor = 'pointer';
         } else {
           mapCanvas.style.cursor = 'default';
         }
@@ -3508,6 +4975,41 @@ function initTacticalMapUI() {
     if (isMapPanning) {
       isMapPanning = false;
       mapCanvas.style.cursor = mapActiveTool === 'pan' ? 'grab' : 'default';
+    }
+
+    // Fin du tracé de mesure ou de gabarit AoE
+    if (measureState.isMeasuring) {
+      measureState.isMeasuring = false;
+      if (CURRENT_ROOM) {
+        socket.emit('map:clear_measure', { roomId: CURRENT_ROOM });
+      }
+      requestMapRender();
+    }
+
+    // Fin du tracé de mur par le MJ
+    if (wallDrawState.isDrawing && CURRENT_ROLE === 'mj') {
+      wallDrawState.isDrawing = false;
+      const len = Math.hypot(wallDrawState.currentX - wallDrawState.startX, wallDrawState.currentY - wallDrawState.startY);
+      if (len >= 15 && CURRENT_ROOM) {
+        const wallData = {
+          x1: Math.round(wallDrawState.startX),
+          y1: Math.round(wallDrawState.startY),
+          x2: Math.round(wallDrawState.currentX),
+          y2: Math.round(wallDrawState.currentY),
+          blocksMovement: true,
+          blocksLight: true
+        };
+        socket.emit('map:add_wall', { roomId: CURRENT_ROOM, role: CURRENT_ROLE, wall: wallData }, (res) => {
+          if (res?.success && res.wall) {
+            if (!Array.isArray(tacticalMapState.walls)) tacticalMapState.walls = [];
+            if (!tacticalMapState.walls.some((w) => w.id === res.wall.id)) {
+              tacticalMapState.walls.push(res.wall);
+            }
+            requestMapRender();
+          }
+        });
+      }
+      requestMapRender();
     }
 
     if (draggedToken) {

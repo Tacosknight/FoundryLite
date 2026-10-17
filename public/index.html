@@ -967,74 +967,320 @@
     <!-- ---------------------------------------------------- -->
     <section id="view-map" class="spa-view hidden flex-1 flex flex-col space-y-3">
       
-      <!-- Trousse d'alchimiste & Bandeau d'outils runiques (Barre supérieure) -->
-      <div class="rpg-artificer-rack p-2.5 sm:p-3 flex flex-wrap items-center justify-between gap-2.5">
+      <!-- Bandeau d'outils tactiques STICKY en haut de l'écran avec Menus Déroulants par Catégorie -->
+      <div id="tactical-map-toolbar" class="sticky top-[52px] sm:top-[56px] z-30 w-full bg-[#0c0a09]/95 backdrop-blur border-b-2 border-[#78350f] p-2 sm:p-2.5 shadow-[0_6px_25px_rgba(0,0,0,0.95)] flex flex-wrap items-center justify-between gap-2">
         
-        <!-- Outils de Mode & Navigation -->
-        <div class="flex items-center flex-wrap gap-1.5">
-          <button
-            type="button"
-            id="map-tool-select"
-            data-map-tool="select"
-            class="map-tool-btn rpg-btn rpg-btn-gold px-3 py-1.5 text-xs font-cinzel font-bold flex items-center gap-1.5 transition cursor-pointer shadow"
-            title="Sélectionner et déplacer les pions"
-          >
-            <span>🖐️</span>
-            <span>Déplacer Pions</span>
-          </button>
+        <!-- Menus Déroulants par Catégorie (Gauche) -->
+        <div class="flex items-center flex-wrap gap-1.5 sm:gap-2">
 
-          <button
-            type="button"
-            id="map-tool-pan"
-            data-map-tool="pan"
-            class="map-tool-btn rpg-btn px-3 py-1.5 text-xs font-cinzel font-bold flex items-center gap-1.5 transition cursor-pointer"
-            title="Naviguer sur la carte (pan)"
-          >
-            <span>✋</span>
-            <span>Vue Caméra</span>
-          </button>
-
-          <!-- Outils de Brouillard réservés au MJ -->
-          <div id="mj-fog-tools" class="hidden items-center gap-1.5 pl-2 border-l border-[#573c24]">
-            <span class="text-[10px] uppercase font-cinzel font-bold text-amber-400 hidden xl:inline">Brouillard :</span>
-            
+          <!-- Catégorie 1 : Navigation & Caméra -->
+          <div class="rpg-dropdown-container">
             <button
               type="button"
-              id="map-tool-fog-rect"
-              data-map-tool="fog-rect"
-              class="map-tool-btn rpg-btn px-2.5 py-1.5 text-xs font-cinzel font-semibold flex items-center gap-1 transition cursor-pointer"
-              title="Gommer le brouillard par rectangle"
+              class="rpg-dropdown-trigger rpg-btn px-2.5 sm:px-3 py-1.5 text-xs font-cinzel font-bold flex items-center gap-1.5 cursor-pointer shadow"
+              title="Outils de navigation, déplacement et caméra"
             >
-              <span>⬛</span>
-              <span>Révéler Rect</span>
+              <span class="text-amber-400">❖</span>
+              <span>Navigation</span>
+              <span class="text-[9px] text-amber-400/80 dropdown-caret">▼</span>
             </button>
+            <div class="rpg-dropdown-menu">
+              <button
+                type="button"
+                id="map-tool-select"
+                data-map-tool="select"
+                class="map-tool-btn rpg-dropdown-item active"
+                title="Sélectionner et déplacer les pions"
+              >
+                <span class="text-amber-400 font-bold">[>]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Déplacer Pions</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Sélectionner et bouger les héros</span>
+                </div>
+              </button>
 
-            <button
-              type="button"
-              id="map-tool-fog-circle"
-              data-map-tool="fog-circle"
-              class="map-tool-btn rpg-btn px-2.5 py-1.5 text-xs font-cinzel font-semibold flex items-center gap-1 transition cursor-pointer"
-              title="Gommer le brouillard par cercle"
-            >
-              <span>⚪</span>
-              <span>Révéler Cercle</span>
-            </button>
+              <button
+                type="button"
+                id="map-tool-pan"
+                data-map-tool="pan"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Naviguer sur la carte (pan)"
+              >
+                <span class="text-amber-400 font-bold">[o]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Vue Caméra (Pan)</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Glisser pour explorer la carte</span>
+                </div>
+              </button>
 
-            <button
-              type="button"
-              id="btn-reset-fog"
-              class="rpg-btn rpg-btn-blood px-2.5 py-1.5 text-xs font-cinzel font-semibold flex items-center gap-1 transition cursor-pointer"
-              title="Masquer à nouveau toute la carte sous le brouillard"
-            >
-              <span>🌫️</span>
-              <span>Reset Brouillard</span>
-            </button>
+              <div class="rpg-dropdown-divider"></div>
+
+              <button
+                type="button"
+                id="btn-map-center"
+                class="rpg-dropdown-item"
+                title="Recentrer la caméra sur la carte"
+              >
+                <span class="text-amber-400 font-bold">[◎]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Recentrer la Vue</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Vue d'ensemble du plateau</span>
+                </div>
+              </button>
+            </div>
           </div>
+
+          <!-- Catégorie 2 : Sorts & Portées (Accessible à tous) -->
+          <div class="rpg-dropdown-container">
+            <button
+              type="button"
+              class="rpg-dropdown-trigger rpg-btn px-2.5 sm:px-3 py-1.5 text-xs font-cinzel font-bold flex items-center gap-1.5 cursor-pointer shadow"
+              title="Gabarits de sorts et réglette de mesure"
+            >
+              <span class="text-amber-400">✦</span>
+              <span>Sorts & Portées</span>
+              <span class="text-[9px] text-amber-400/80 dropdown-caret">▼</span>
+            </button>
+            <div class="rpg-dropdown-menu">
+              <button
+                type="button"
+                id="map-tool-measure"
+                data-map-tool="measure"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Réglette de mesure de distance"
+              >
+                <span class="text-amber-400 font-bold">[✦]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Réglette Tactique</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Mesurer portées (mètres & cases)</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                id="map-tool-aoe-circle"
+                data-map-tool="aoe-circle"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Gabarit Sphère / Boule de feu"
+              >
+                <span class="text-amber-400 font-bold">[●]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Sphère AoE (Boule de feu)</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Rayon d'impact circulaire</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                id="map-tool-aoe-cone"
+                data-map-tool="aoe-cone"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Gabarit Cône / Souffle"
+              >
+                <span class="text-amber-400 font-bold">[▲]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Cône AoE (Souffle)</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Éventail de projection arcanique</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                id="map-tool-aoe-line"
+                data-map-tool="aoe-line"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Gabarit Ligne / Foudre"
+              >
+                <span class="text-amber-400 font-bold">[▬]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Ligne AoE (Foudre)</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Trajectoire rectiligne de sort</span>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Catégorie 3 : Murs & Cloisons (MJ uniquement) -->
+          <div id="mj-wall-tools" class="rpg-dropdown-container hidden">
+            <button
+              type="button"
+              class="rpg-dropdown-trigger rpg-btn px-2.5 sm:px-3 py-1.5 text-xs font-cinzel font-bold flex items-center gap-1.5 cursor-pointer shadow"
+              title="Outils d'architecture et de cloisons (MJ)"
+            >
+              <span class="text-amber-400">[#]</span>
+              <span>Murs</span>
+              <span class="text-[9px] text-amber-400/80 dropdown-caret">▼</span>
+            </button>
+            <div class="rpg-dropdown-menu">
+              <button
+                type="button"
+                id="map-tool-wall"
+                data-map-tool="wall"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Tracer des cloisons infranchissables"
+              >
+                <span class="text-amber-400 font-bold">[#]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Tracer des Murs</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Bloque passage et vision (aimantation)</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                id="map-tool-wall-delete"
+                data-map-tool="wall-delete"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Supprimer un segment de mur"
+              >
+                <span class="text-rose-400 font-bold">[-]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Démolir un Mur</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Cliquer sur un segment pour l'abattre</span>
+                </div>
+              </button>
+
+              <div class="rpg-dropdown-divider"></div>
+
+              <button
+                type="button"
+                id="btn-clear-walls"
+                class="rpg-dropdown-item text-rose-300 hover:text-rose-100 hover:bg-rose-950/40"
+                title="Effacer tous les murs de la carte"
+              >
+                <span class="text-rose-400 font-bold">[✕]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Reset Murs</span>
+                  <span class="text-[10px] text-rose-400/70 font-crimson italic">Abattre tous les murs du donjon</span>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Catégorie 4 : Brouillard de Guerre (MJ uniquement) -->
+          <div id="mj-fog-tools" class="rpg-dropdown-container hidden">
+            <button
+              type="button"
+              class="rpg-dropdown-trigger rpg-btn px-2.5 sm:px-3 py-1.5 text-xs font-cinzel font-bold flex items-center gap-1.5 cursor-pointer shadow"
+              title="Outils de gestion du brouillard de guerre (MJ)"
+            >
+              <span class="text-amber-400">[~]</span>
+              <span>Brouillard</span>
+              <span class="text-[9px] text-amber-400/80 dropdown-caret">▼</span>
+            </button>
+            <div class="rpg-dropdown-menu">
+              <button
+                type="button"
+                id="map-tool-fog-rect"
+                data-map-tool="fog-rect"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Gommer le brouillard par rectangle"
+              >
+                <span class="text-amber-400 font-bold">[■]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Révéler Rectangle</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Découper une zone rectangulaire</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                id="map-tool-fog-circle"
+                data-map-tool="fog-circle"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Gommer le brouillard par cercle"
+              >
+                <span class="text-amber-400 font-bold">[○]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Révéler Cercle</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Découper une zone circulaire</span>
+                </div>
+              </button>
+
+              <div class="rpg-dropdown-divider"></div>
+
+              <button
+                type="button"
+                id="btn-reset-fog"
+                class="rpg-dropdown-item text-rose-300 hover:text-rose-100 hover:bg-rose-950/40"
+                title="Masquer à nouveau toute la carte sous le brouillard"
+              >
+                <span class="text-rose-400 font-bold">[~]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Reset Brouillard</span>
+                  <span class="text-[10px] text-rose-400/70 font-crimson italic">Replonger la carte dans l'obscurité</span>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Catégorie 5 : Entités & Carte (MJ uniquement) -->
+          <div id="mj-map-actions" class="rpg-dropdown-container hidden">
+            <button
+              type="button"
+              class="rpg-dropdown-trigger rpg-btn rpg-btn-ether px-2.5 sm:px-3 py-1.5 text-xs font-cinzel font-bold flex items-center gap-1.5 cursor-pointer shadow"
+              title="Invoquer des pions et modifier le fond de carte (MJ)"
+            >
+              <span class="text-sky-300">[+]</span>
+              <span>Entités & Fond</span>
+              <span class="text-[9px] text-sky-300/80 dropdown-caret">▼</span>
+            </button>
+            <div class="rpg-dropdown-menu">
+              <button
+                type="button"
+                id="btn-open-player-tokens-modal"
+                class="rpg-dropdown-item"
+                title="Invoquer ou repositionner un pion de joueur"
+              >
+                <span class="text-sky-400 font-bold">[+]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Pion Joueur</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Invoquer ou repositionner un héros</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                id="btn-open-monster-modal"
+                class="rpg-dropdown-item"
+                title="Invoquer un monstre ou PNJ sur la carte"
+              >
+                <span class="text-rose-400 font-bold">[+]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Monstre / PNJ</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Ajouter une créature sur le terrain</span>
+                </div>
+              </button>
+
+              <div class="rpg-dropdown-divider"></div>
+
+              <button
+                type="button"
+                id="btn-open-bg-modal"
+                class="rpg-dropdown-item"
+                title="Changer l'image de fond de la Battlemap"
+              >
+                <span class="text-amber-400 font-bold">[▤]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Fond de Battlemap</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Changer l'image de fond (upload / URL)</span>
+                </div>
+              </button>
+            </div>
+          </div>
+
         </div>
 
-        <!-- Contrôles Zoom & Grille -->
+        <!-- Contrôles Rapides & Statuts (Droite) -->
         <div class="flex items-center flex-wrap gap-2">
-          <!-- Zoom -->
+
+          <!-- Badge Outil Actif -->
+          <div id="hud-active-tool-pill" class="hidden md:flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-cinzel font-bold text-amber-300 bg-[#14100c] border border-[#78350f] shadow-inner">
+            <span class="text-stone-400 text-[10px]">Actif :</span>
+            <span id="hud-active-tool-name" class="text-[#fde047]">Déplacer Pions</span>
+          </div>
+
+          <!-- Contrôles Zoom -->
           <div class="flex items-center bg-[#0c0a09] border border-[#573c24] overflow-hidden shadow-inner">
             <button
               type="button"
@@ -1044,7 +1290,7 @@
             >
               －
             </button>
-            <span id="map-zoom-display" class="px-2 text-[11px] font-mono text-amber-400 font-bold min-w-[50px] text-center">
+            <span id="map-zoom-display" class="px-2 text-[11px] font-mono text-amber-400 font-bold min-w-[48px] text-center">
               100%
             </span>
             <button
@@ -1061,65 +1307,29 @@
               class="px-2.5 py-1 text-xs text-stone-400 hover:text-[#fde047] border-l border-[#573c24] hover:bg-[#1f1b18] transition flex items-center gap-1 font-cinzel cursor-pointer"
               title="Recentrer la caméra"
             >
-              <span>🎯</span>
+              <span class="text-amber-400 font-bold">[◎]</span>
               <span class="hidden sm:inline">Centrer</span>
             </button>
           </div>
 
-          <!-- Système de Tour de Jeu (Visible par tous les joueurs et MJ) -->
-          <div id="map-turn-banner" class="flex items-center gap-2 bg-[#0c0a09] border border-[#d4af37] px-3 py-1.5 shadow-[0_0_12px_rgba(212,175,55,0.25)]">
-            <span class="text-xs">⚔️</span>
+          <!-- Système de Tour de Jeu -->
+          <div id="map-turn-banner" class="flex items-center gap-2 bg-[#0c0a09] border border-[#d4af37] px-2.5 py-1 shadow-[0_0_12px_rgba(212,175,55,0.25)]">
+            <span class="text-xs font-bold text-amber-400">⚔</span>
             <div class="flex items-center gap-1.5 text-xs font-cinzel">
               <span class="text-stone-400 text-[11px] hidden sm:inline">Tour :</span>
-              <span id="turn-active-name" class="font-bold text-[#fde047] truncate max-w-[130px]">En attente</span>
+              <span id="turn-active-name" class="font-bold text-[#fde047] truncate max-w-[120px]">En attente</span>
             </div>
             <!-- Bouton Tour Suivant rapide (visible pour le MJ) -->
             <button
               type="button"
               id="btn-next-turn"
-              class="hidden px-2.5 py-0.5 rpg-btn rpg-btn-gold text-[11px] font-cinzel font-bold transition shadow cursor-pointer items-center gap-1 active:scale-95"
-              title="Passer au joueur suivant et lui envoyer une notification"
+              class="hidden px-2 py-0.5 rpg-btn rpg-btn-gold text-[10px] font-cinzel font-bold transition shadow cursor-pointer items-center gap-1 active:scale-95"
+              title="Passer au joueur suivant"
             >
-              <span>🔔</span>
-              <span>Tour Suivant</span>
+              <span>Tour Suiv.</span>
             </button>
           </div>
-        </div>
 
-        <!-- Panneau Action MJ (Pions Joueurs, Monstres, Choix de Tour & Fond de Carte) -->
-        <div id="mj-map-actions" class="hidden items-center flex-wrap gap-2">
-          <!-- Invoquer / Placer des pions joueurs -->
-          <button
-            type="button"
-            id="btn-open-player-tokens-modal"
-            class="rpg-btn rpg-btn-ether px-3 py-1.5 text-xs font-cinzel font-bold flex items-center gap-1.5 transition cursor-pointer"
-            title="Invoquer ou repositionner un pion de joueur sur la carte"
-          >
-            <span>🧙</span>
-            <span>+ Pion Joueur</span>
-          </button>
-
-          <!-- Invoquer un monstre -->
-          <button
-            type="button"
-            id="btn-open-monster-modal"
-            class="rpg-btn rpg-btn-blood px-3 py-1.5 text-xs font-cinzel font-bold flex items-center gap-1.5 transition cursor-pointer"
-            title="Invoquer un monstre ou PNJ sur la carte"
-          >
-            <span>👹</span>
-            <span>+ Monstre</span>
-          </button>
-
-          <!-- Fond de Battlemap -->
-          <button
-            type="button"
-            id="btn-open-bg-modal"
-            class="rpg-btn px-3 py-1.5 text-xs font-cinzel font-bold flex items-center gap-1.5 transition cursor-pointer"
-            title="Changer l'image de la Battlemap (upload ou URL)"
-          >
-            <span>🖼️</span>
-            <span>Fond Carte</span>
-          </button>
         </div>
 
       </div>
@@ -1176,6 +1386,11 @@
         <!-- Indicateur de mode Brouillard pour le MJ -->
         <div id="hud-fog-drawing-notice" class="absolute top-3 left-1/2 -translate-x-1/2 pointer-events-none z-20 hidden px-4 py-1.5 bg-[#450a0a]/95 border-2 border-[#ef4444] text-[#fee2e2] font-cinzel text-xs font-bold shadow-[0_0_15px_rgba(239,68,68,0.6)] animate-pulse">
           ✦ Mode Révélation du Brouillard actif : Glissez pour gommer ✦
+        </div>
+
+        <!-- Indicateur de mode Mesure / Gabarit de Sort -->
+        <div id="hud-measure-notice" class="absolute top-3 left-1/2 -translate-x-1/2 pointer-events-none z-20 hidden px-4 py-1.5 bg-[#171514]/95 border-2 border-[#d4af37] text-[#fef08a] font-cinzel text-xs font-bold shadow-[0_0_15px_rgba(212,175,55,0.45)]">
+          ✦ Mode Tactique : Cliquez et glissez sur la carte pour projeter la mesure ✦
         </div>
 
       </div>

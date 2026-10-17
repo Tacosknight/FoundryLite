@@ -453,6 +453,130 @@ function registerMapHandlers(io, socket) {
       }
     }
   });
+
+  /**
+   * Synchronisation en direct de la réglette ou du gabarit AoE (map:measure)
+   */
+  socket.on('map:measure', (data) => {
+    try {
+      const roomId = data?.roomId || socket.data?.roomId || 'table-ronde';
+      socket.to(roomId).emit('map:measured', {
+        ...data,
+        socketId: socket.id
+      });
+    } catch (err) {
+      console.error('[MapHandler Error] map:measure :', err.message);
+    }
+  });
+
+  /**
+   * Effacement de la réglette / du gabarit AoE (map:clear_measure)
+   */
+  socket.on('map:clear_measure', (data) => {
+    try {
+      const roomId = data?.roomId || socket.data?.roomId || 'table-ronde';
+      socket.to(roomId).emit('map:measure_cleared', {
+        socketId: socket.id
+      });
+    } catch (err) {
+      console.error('[MapHandler Error] map:clear_measure :', err.message);
+    }
+  });
+
+  /**
+   * Ajout d'un segment de mur manuel (map:add_wall) - Réservé au MJ
+   */
+  socket.on('map:add_wall', (data, callback) => {
+    try {
+      const roomId = data?.roomId || socket.data?.roomId || 'table-ronde';
+      const { wall, role } = data || {};
+
+      if (!isUserMJ(socket, roomId, role)) {
+        throw new Error('Seul le Maître du Jeu peut ériger des murs sur la carte.');
+      }
+      if (!wall || typeof wall.x1 !== 'number' || typeof wall.x2 !== 'number') {
+        throw new Error('Coordonnées de mur invalides.');
+      }
+
+      const newWall = roomManager.addWall(roomId, wall);
+
+      io.to(roomId).emit('map:wall_added', {
+        roomId,
+        wall: newWall
+      });
+
+      if (typeof callback === 'function') {
+        callback({ success: true, wall: newWall });
+      }
+    } catch (err) {
+      console.error('[MapHandler Error] map:add_wall :', err.message);
+      if (typeof callback === 'function') {
+        callback({ success: false, error: err.message });
+      }
+    }
+  });
+
+  /**
+   * Suppression d'un segment de mur (map:remove_wall) - Réservé au MJ
+   */
+  socket.on('map:remove_wall', (data, callback) => {
+    try {
+      const roomId = data?.roomId || socket.data?.roomId || 'table-ronde';
+      const { wallId, role } = data || {};
+
+      if (!isUserMJ(socket, roomId, role)) {
+        throw new Error('Seul le Maître du Jeu peut démolir des murs sur la carte.');
+      }
+      if (!wallId) {
+        throw new Error('Identifiant de mur manquant.');
+      }
+
+      const removed = roomManager.removeWall(roomId, wallId);
+
+      if (removed) {
+        io.to(roomId).emit('map:wall_removed', {
+          roomId,
+          wallId
+        });
+      }
+
+      if (typeof callback === 'function') {
+        callback({ success: true, wallId });
+      }
+    } catch (err) {
+      console.error('[MapHandler Error] map:remove_wall :', err.message);
+      if (typeof callback === 'function') {
+        callback({ success: false, error: err.message });
+      }
+    }
+  });
+
+  /**
+   * Effacement de tous les murs (map:clear_walls) - Réservé au MJ
+   */
+  socket.on('map:clear_walls', (data, callback) => {
+    try {
+      const roomId = data?.roomId || socket.data?.roomId || 'table-ronde';
+      const { role } = data || {};
+
+      if (!isUserMJ(socket, roomId, role)) {
+        throw new Error('Seul le Maître du Jeu peut réinitialiser les murs.');
+      }
+
+      roomManager.clearWalls(roomId);
+
+      io.to(roomId).emit('map:walls_cleared', { roomId });
+
+      if (typeof callback === 'function') {
+        callback({ success: true });
+      }
+    } catch (err) {
+      console.error('[MapHandler Error] map:clear_walls :', err.message);
+      if (typeof callback === 'function') {
+        callback({ success: false, error: err.message });
+      }
+    }
+  });
 }
 
 module.exports = registerMapHandlers;

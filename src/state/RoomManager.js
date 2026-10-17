@@ -34,6 +34,7 @@ class RoomManager {
       fogEnabled: true,
       tokens: [],
       revealedAreas: [],
+      walls: [],
       currentTurn: null
     };
   }
@@ -99,6 +100,7 @@ class RoomManager {
         } else {
           if (!Array.isArray(room.map.tokens)) room.map.tokens = [];
           if (!Array.isArray(room.map.revealedAreas)) room.map.revealedAreas = [];
+          if (!Array.isArray(room.map.walls)) room.map.walls = [];
           if (typeof room.map.gridSize !== 'number') room.map.gridSize = 50;
           if (typeof room.map.snapToGrid !== 'boolean') room.map.snapToGrid = true;
           if (typeof room.map.fogEnabled !== 'boolean') room.map.fogEnabled = true;
@@ -680,6 +682,66 @@ class RoomManager {
     const room = this.getRoom(roomId);
     if (!room.map) room.map = this.createDefaultMap();
     room.map.revealedAreas = [];
+    room.updatedAt = new Date().toISOString();
+    this.triggerAutoSave();
+    return true;
+  }
+
+  /**
+   * Ajoute un segment de mur rectiligne sur la carte (Réservé au MJ)
+   * @param {string} roomId 
+   * @param {Object} wallData { x1, y1, x2, y2, blocksMovement, blocksLight }
+   */
+  addWall(roomId, wallData) {
+    const room = this.getRoom(roomId);
+    if (!room.map) room.map = this.createDefaultMap();
+    if (!Array.isArray(room.map.walls)) room.map.walls = [];
+
+    const id = `wall_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    const newWall = {
+      id,
+      x1: Math.round(Number(wallData.x1)),
+      y1: Math.round(Number(wallData.y1)),
+      x2: Math.round(Number(wallData.x2)),
+      y2: Math.round(Number(wallData.y2)),
+      blocksMovement: wallData.blocksMovement !== false,
+      blocksLight: wallData.blocksLight !== false
+    };
+
+    room.map.walls.push(newWall);
+    room.updatedAt = new Date().toISOString();
+    this.triggerAutoSave();
+    return newWall;
+  }
+
+  /**
+   * Supprime un mur de la carte
+   * @param {string} roomId 
+   * @param {string} wallId 
+   */
+  removeWall(roomId, wallId) {
+    const room = this.getRoom(roomId);
+    if (!room.map) room.map = this.createDefaultMap();
+    if (!Array.isArray(room.map.walls)) room.map.walls = [];
+
+    const index = room.map.walls.findIndex((w) => w.id === wallId);
+    if (index !== -1) {
+      const [removed] = room.map.walls.splice(index, 1);
+      room.updatedAt = new Date().toISOString();
+      this.triggerAutoSave();
+      return removed;
+    }
+    return null;
+  }
+
+  /**
+   * Efface tous les murs de la carte
+   * @param {string} roomId 
+   */
+  clearWalls(roomId) {
+    const room = this.getRoom(roomId);
+    if (!room.map) room.map = this.createDefaultMap();
+    room.map.walls = [];
     room.updatedAt = new Date().toISOString();
     this.triggerAutoSave();
     return true;
