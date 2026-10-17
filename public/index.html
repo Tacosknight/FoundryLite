@@ -199,6 +199,17 @@
           <span>🗺️</span>
           <span>Carte Tactique</span>
         </button>
+
+        <button
+          type="button"
+          data-tab="investigation"
+          id="nav-tab-investigation"
+          class="nav-tab rpg-btn unjoined-hidden hidden px-3.5 py-1.5 text-xs font-cinzel font-bold items-center gap-1.5 transition duration-150 cursor-pointer text-slate-400 hover:text-slate-200"
+          title="Carnet d'enquête et mur de détective partagé"
+        >
+          <span class="text-amber-400 font-bold font-mono">[#]</span>
+          <span>Carnet d'Enquête</span>
+        </button>
       </nav>
 
       <!-- Salle & Statut Réseau -->
@@ -1097,6 +1108,105 @@
                   <span class="text-[10px] text-stone-400 font-crimson italic">Trajectoire rectiligne de sort</span>
                 </div>
               </button>
+
+              <div class="rpg-dropdown-divider"></div>
+
+              <button
+                type="button"
+                id="btn-open-conditions-modal"
+                class="rpg-dropdown-item text-amber-300 hover:text-amber-100 hover:bg-stone-900"
+                title="Gérer les altérations d'état et bénédictions tactiques"
+              >
+                <span class="text-amber-400 font-bold">[✦]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Altérations d'État</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Aveuglé, À terre, Invisible, etc.</span>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Catégorie : Craie & Pings Tactiques (Accessible à tous) -->
+          <div class="rpg-dropdown-container">
+            <button
+              type="button"
+              class="rpg-dropdown-trigger rpg-btn px-2.5 sm:px-3 py-1.5 text-xs font-cinzel font-bold flex items-center gap-1.5 cursor-pointer shadow"
+              title="Dessin libre à la craie et signaux d'attention lumineux"
+            >
+              <span class="text-amber-400 font-bold">[✎]</span>
+              <span>Craie & Pings</span>
+              <span class="text-[9px] text-amber-400/80 dropdown-caret">▼</span>
+            </button>
+            <div class="rpg-dropdown-menu">
+              <button
+                type="button"
+                id="map-tool-chalk"
+                data-map-tool="chalk"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Dessin libre à main levée à la craie (Éphémère ou Permanent)"
+              >
+                <span class="text-amber-300 font-bold">[✎]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Craie Tactique</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Dessin libre (Éphémère 5s ou Permanent)</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                id="map-tool-ping"
+                data-map-tool="ping"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Émettre un halo lumineux animé pour désigner un point (Alt + Clic)"
+              >
+                <span class="text-amber-400 font-bold">[!]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Signal d'Attention (Ping)</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Halo d'ondes animées avec nom (Alt + Clic)</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                id="map-tool-chalk-eraser"
+                data-map-tool="chalk-eraser"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Effacer un tracé permanent en cliquant dessus"
+              >
+                <span class="text-amber-300 font-bold">[~]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Gomme à Craie</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Cliquer sur un trait permanent pour le gommer</span>
+                </div>
+              </button>
+
+              <div class="rpg-dropdown-divider"></div>
+
+              <button
+                type="button"
+                id="btn-clear-my-chalk"
+                class="rpg-dropdown-item text-amber-200 hover:text-amber-100 hover:bg-stone-900"
+                title="Supprimer tous mes traits de craie permanents"
+              >
+                <span class="text-amber-400 font-bold">[✕]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Effacer Mes Tracés</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Supprimer uniquement mes annotations</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                id="btn-clear-all-chalk"
+                class="rpg-dropdown-item text-rose-300 hover:text-rose-100 hover:bg-rose-950/40"
+                title="Effacer tous les traits de craie de la carte (MJ / Consensus)"
+              >
+                <span class="text-rose-400 font-bold">[✕]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Nettoyer Toute la Carte</span>
+                  <span class="text-[10px] text-rose-400/70 font-crimson italic">Effacer tous les tracés permanents</span>
+                </div>
+              </button>
             </div>
           </div>
 
@@ -1123,6 +1233,34 @@
                 <div class="flex flex-col">
                   <span class="font-bold">Tracer des Murs</span>
                   <span class="text-[10px] text-stone-400 font-crimson italic">Bloque passage et vision (aimantation)</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                id="map-tool-chasm"
+                data-map-tool="chasm"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Tracer des gouffres infranchissables"
+              >
+                <span class="text-indigo-400 font-bold">[≈]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Tracer un Gouffre</span>
+                  <span class="text-[10px] text-indigo-300/80 font-crimson italic">Bloque passage seul (vue dégagée / abîme)</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                id="map-tool-door"
+                data-map-tool="door"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Poser une porte dynamique ouvrable et verrouillable"
+              >
+                <span class="text-amber-300 font-bold">[⊓]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Poser une Porte</span>
+                  <span class="text-[10px] text-amber-300/80 font-crimson italic">Passage ouvrable & verrouillable</span>
                 </div>
               </button>
 
@@ -1157,18 +1295,443 @@
             </div>
           </div>
 
-          <!-- Catégorie 4 : Brouillard de Guerre (MJ uniquement) -->
+          <!-- Catégorie : Terrains & Dangers (MJ uniquement) -->
+          <div id="mj-zone-tools" class="rpg-dropdown-container hidden">
+            <button
+              type="button"
+              class="rpg-dropdown-trigger rpg-btn px-2.5 sm:px-3 py-1.5 text-xs font-cinzel font-bold flex items-center gap-1.5 cursor-pointer shadow"
+              title="Surfaces ralentissantes et zones de danger actif (MJ)"
+            >
+              <span class="text-emerald-400 font-bold">[≈]</span>
+              <span>Terrains & Dangers</span>
+              <span class="text-[9px] text-emerald-400/80 dropdown-caret">▼</span>
+            </button>
+            <div class="rpg-dropdown-menu">
+              <!-- Surfaces Ralentissantes -->
+              <div class="px-3 py-1 text-[10px] font-cinzel font-bold text-stone-400 uppercase tracking-wider bg-stone-950/80 border-b border-stone-800">
+                Surfaces Ralentissantes (Vitesse / 2)
+              </div>
+              <button
+                type="button"
+                id="map-tool-zone-swamp"
+                data-map-tool="zone-swamp"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Tracer une zone de marais ralentissant de 50%"
+              >
+                <span class="text-lime-500 font-bold">[≈]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Marais Boueux</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Vitesse réduite de 50%</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                id="map-tool-zone-water"
+                data-map-tool="zone-water"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Tracer une zone d'eau profonde ralentissant de 50%"
+              >
+                <span class="text-sky-400 font-bold">[≈]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Eau Profonde</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Bassin, rivière ou fosse immergée</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                id="map-tool-zone-rubble"
+                data-map-tool="zone-rubble"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Tracer une zone d'éboulis ou gravats ralentissant de 50%"
+              >
+                <span class="text-stone-300 font-bold">[≈]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Gravats & Pierres</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Terrain accidenté instable</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                id="map-tool-zone-web"
+                data-map-tool="zone-web"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Tracer des toiles d'araignée épaisses ralentissant de 50%"
+              >
+                <span class="text-slate-100 font-bold">[#]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Toiles d'Araignée</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Filaments collants freinant les pas</span>
+                </div>
+              </button>
+
+              <div class="rpg-dropdown-divider"></div>
+
+              <!-- Zones de Danger Actif -->
+              <div class="px-3 py-1 text-[10px] font-cinzel font-bold text-rose-400 uppercase tracking-wider bg-stone-950/80 border-b border-stone-800">
+                Zones de Danger Actif
+              </div>
+              <button
+                type="button"
+                id="map-tool-zone-fire"
+                data-map-tool="zone-fire"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Tracer une zone de flammes ardentes (Dégâts + Brûlé)"
+              >
+                <span class="text-orange-500 font-bold">[♨]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Nappe de Flammes</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">4 dégâts de feu + État Brûlé</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                id="map-tool-zone-poison"
+                data-map-tool="zone-poison"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Tracer une nappe de poison (Dégâts + Empoisonné)"
+              >
+                <span class="text-emerald-500 font-bold">[☣]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Nappe de Poison</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">3 dégâts de poison + État Empoisonné</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                id="map-tool-zone-acid"
+                data-map-tool="zone-acid"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Tracer une flaque d'acide corrosif (Dégâts)"
+              >
+                <span class="text-lime-400 font-bold">[♨]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Flaque d'Acide</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">5 dégâts d'acide corrosif</span>
+                </div>
+              </button>
+
+              <div class="rpg-dropdown-divider"></div>
+
+              <button
+                type="button"
+                id="map-tool-zone-delete"
+                data-map-tool="zone-delete"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Supprimer une zone d'effet au clic"
+              >
+                <span class="text-rose-400 font-bold">[-]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Dissiper une Zone</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Cliquer sur une zone pour l'effacer</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                id="btn-clear-zones"
+                class="rpg-dropdown-item text-rose-300 hover:text-rose-100 hover:bg-rose-950/40"
+                title="Supprimer toutes les surfaces et zones de la carte"
+              >
+                <span class="text-rose-400 font-bold">[✕]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Reset Terrains & Dangers</span>
+                  <span class="text-[10px] text-rose-400/70 font-crimson italic">Nettoyer toutes les zones</span>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Catégorie : Pièges & Secrets (MJ uniquement) -->
+          <div id="mj-trap-tools" class="rpg-dropdown-container hidden">
+            <button
+              type="button"
+              class="rpg-dropdown-trigger rpg-btn px-2.5 sm:px-3 py-1.5 text-xs font-cinzel font-bold flex items-center gap-1.5 cursor-pointer shadow"
+              title="Mécanismes dissimulés, pièges et passages secrets (MJ)"
+            >
+              <span class="text-indigo-400 font-bold">[!]</span>
+              <span>Pièges & Secrets</span>
+              <span class="text-[9px] text-indigo-400/80 dropdown-caret">▼</span>
+            </button>
+            <div class="rpg-dropdown-menu">
+              <button
+                type="button"
+                id="map-tool-trap-pit"
+                data-map-tool="trap-pit"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Poser une fosse dissimulée (Chute, dégâts & À terre)"
+              >
+                <span class="text-stone-300 font-bold">[v]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Fosse Dissimulée</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">DD 12 | 5 dégâts + État À terre</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                id="map-tool-trap-snare"
+                data-map-tool="trap-snare"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Poser un piège à mâchoires (Dégâts & Entravé)"
+              >
+                <span class="text-amber-400 font-bold">[#]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Piège à Mâchoires</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">DD 13 | 6 dégâts + État Entravé</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                id="map-tool-trap-poison-dart"
+                data-map-tool="trap-poison-dart"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Poser un piège de fléchettes empoisonnées"
+              >
+                <span class="text-emerald-400 font-bold">[☣]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Fléchettes Empoisonnées</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">DD 14 | 4 dégâts + État Empoisonné</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                id="map-tool-trap-secret-passage"
+                data-map-tool="trap-secret-passage"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Poser un passage secret dissimulé"
+              >
+                <span class="text-sky-400 font-bold">[⊓]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Passage Secret</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">DD 13 | Découverte sans blessure</span>
+                </div>
+              </button>
+
+              <div class="rpg-dropdown-divider"></div>
+
+              <button
+                type="button"
+                id="btn-open-traps-modal"
+                class="rpg-dropdown-item text-amber-300 hover:text-amber-100 hover:bg-stone-900"
+                title="Inspecter, réarmer ou régler la difficulté des pièges"
+              >
+                <span class="text-amber-400 font-bold">[✦]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Gestion des Pièges (MJ)</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Liste, seuils DD & réarmement</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                id="map-tool-trap-delete"
+                data-map-tool="trap-delete"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Supprimer un piège au clic"
+              >
+                <span class="text-rose-400 font-bold">[-]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Démanteler un Piège</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Cliquer sur un piège pour le retirer</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                id="btn-clear-traps"
+                class="rpg-dropdown-item text-rose-300 hover:text-rose-100 hover:bg-rose-950/40"
+                title="Supprimer tous les pièges de la carte"
+              >
+                <span class="text-rose-400 font-bold">[✕]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Reset Pièges</span>
+                  <span class="text-[10px] text-rose-400/70 font-crimson italic">Nettoyer tous les mécanismes</span>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Catégorie : Scènes & Donjons (MJ uniquement) -->
+          <div id="mj-scene-tools" class="rpg-dropdown-container hidden">
+            <button
+              type="button"
+              class="rpg-dropdown-trigger rpg-btn px-2.5 sm:px-3 py-1.5 text-xs font-cinzel font-bold flex items-center gap-1.5 cursor-pointer shadow"
+              title="Gestionnaire de scènes et téléporteurs de niveaux (MJ)"
+            >
+              <span class="text-cyan-400 font-bold">[⌘]</span>
+              <span>Scènes & Niveaux</span>
+              <span class="text-[9px] text-cyan-400/80 dropdown-caret">▼</span>
+            </button>
+            <div class="rpg-dropdown-menu">
+              <button
+                type="button"
+                id="btn-open-scene-manager"
+                class="rpg-dropdown-item text-cyan-300 hover:text-cyan-100 hover:bg-stone-900"
+                title="Gérer, créer et basculer entre les scènes de donjon"
+              >
+                <span class="text-cyan-400 font-bold">[⌘]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Gestionnaire de Scènes</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Rez-de-chaussée, Crypte, Extérieur...</span>
+                </div>
+              </button>
+
+              <div class="rpg-dropdown-divider"></div>
+
+              <div class="px-3 py-1 text-[10px] font-cinzel font-bold text-stone-400 uppercase tracking-wider bg-stone-950/80 border-b border-stone-800">
+                Téléporteurs & Transitions
+              </div>
+
+              <button
+                type="button"
+                id="map-tool-teleport"
+                data-map-tool="teleport"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Poser un téléporteur ou escalier de transition vers une autre scène"
+              >
+                <span class="text-cyan-400 font-bold">[▼]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Poser un Téléporteur</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Escalier, trappe ou portail magique</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                id="map-tool-teleport-delete"
+                data-map-tool="teleport-delete"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Supprimer un point de transition au clic"
+              >
+                <span class="text-rose-400 font-bold">[-]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Démanteler Téléporteur</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Cliquer sur un portail pour le retirer</span>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Catégorie : Objets & PNJ (Bac à Sable) (MJ uniquement) -->
+          <div id="mj-prop-tools" class="rpg-dropdown-container hidden">
+            <button
+              type="button"
+              class="rpg-dropdown-trigger rpg-btn px-2.5 sm:px-3 py-1.5 text-xs font-cinzel font-bold flex items-center gap-1.5 cursor-pointer shadow"
+              title="Objets interactifs et fiches de PNJ 'Bac à Sable' (MJ)"
+            >
+              <span class="text-amber-300 font-bold">[■]</span>
+              <span>Objets & PNJ</span>
+              <span class="text-[9px] text-amber-300/80 dropdown-caret">▼</span>
+            </button>
+            <div class="rpg-dropdown-menu">
+              <button
+                type="button"
+                id="map-tool-prop"
+                data-map-tool="prop"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Déposer un objet interactif au clic sur la carte"
+              >
+                <span class="text-amber-400 font-bold">[+]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Déposer un Objet / PNJ</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Coffre, autel, levier, cadavre, livre...</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                id="map-tool-prop-delete"
+                data-map-tool="prop-delete"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Supprimer un objet au clic"
+              >
+                <span class="text-rose-400 font-bold">[-]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Retirer un Objet</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Cliquer sur un élément pour le retirer</span>
+                </div>
+              </button>
+
+              <div class="rpg-dropdown-divider"></div>
+
+              <button
+                type="button"
+                id="btn-open-prop-modal"
+                class="rpg-dropdown-item text-amber-300 hover:text-amber-100 hover:bg-stone-900"
+                title="Créer un nouvel objet avec détails et documents secrets"
+              >
+                <span class="text-amber-400 font-bold">[■]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Créer Fiche Objet / PNJ</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Image PC, description, parchemin secret...</span>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Catégorie 4 : Brouillard & Ambiance (MJ uniquement) -->
           <div id="mj-fog-tools" class="rpg-dropdown-container hidden">
             <button
               type="button"
               class="rpg-dropdown-trigger rpg-btn px-2.5 sm:px-3 py-1.5 text-xs font-cinzel font-bold flex items-center gap-1.5 cursor-pointer shadow"
-              title="Outils de gestion du brouillard de guerre (MJ)"
+              title="Outils de gestion du brouillard et de l'éclairage (MJ)"
             >
               <span class="text-amber-400">[~]</span>
-              <span>Brouillard</span>
+              <span>Brouillard & Ambiance</span>
               <span class="text-[9px] text-amber-400/80 dropdown-caret">▼</span>
             </button>
             <div class="rpg-dropdown-menu">
+              <button
+                type="button"
+                id="btn-toggle-day-night"
+                class="rpg-dropdown-item text-amber-300 hover:text-amber-100 hover:bg-stone-900"
+                title="Basculer entre Mode Jour et Mode Nuit"
+              >
+                <span id="icon-day-night-btn" class="text-amber-400 font-bold">[☀]</span>
+                <div class="flex flex-col">
+                  <span id="label-day-night-btn" class="font-bold">Mode : Plein Jour</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Basculer Jour / Nuit obscure</span>
+                </div>
+              </button>
+
+              <div class="rpg-dropdown-divider"></div>
+
+              <button
+                type="button"
+                id="map-tool-light"
+                data-map-tool="light"
+                class="map-tool-btn rpg-dropdown-item"
+                title="Placer un brasero ou une source de lumière fixe"
+              >
+                <span class="text-amber-400 font-bold">[♨]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Poser un Brasero</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Lumière fixe (12m) perçant le brouillard</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                id="btn-clear-lights"
+                class="rpg-dropdown-item text-rose-300 hover:text-rose-100 hover:bg-rose-950/40"
+                title="Supprimer toutes les lumières fixes de la carte"
+              >
+                <span class="text-rose-400 font-bold">[✕]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Reset Lumières</span>
+                  <span class="text-[10px] text-rose-400/70 font-crimson italic">Éteindre tous les braseros</span>
+                </div>
+              </button>
+
+              <div class="rpg-dropdown-divider"></div>
+
               <button
                 type="button"
                 id="map-tool-fog-rect"
@@ -1252,6 +1815,19 @@
                 </div>
               </button>
 
+              <button
+                type="button"
+                id="btn-open-conditions-modal-mj"
+                class="rpg-dropdown-item"
+                title="Gérer les altérations d'état des pions et créatures"
+              >
+                <span class="text-purple-400 font-bold">[✦]</span>
+                <div class="flex flex-col">
+                  <span class="font-bold">Altérations d'État</span>
+                  <span class="text-[10px] text-stone-400 font-crimson italic">Appliquer ou soigner les conditions</span>
+                </div>
+              </button>
+
               <div class="rpg-dropdown-divider"></div>
 
               <button
@@ -1273,6 +1849,12 @@
 
         <!-- Contrôles Rapides & Statuts (Droite) -->
         <div class="flex items-center flex-wrap gap-2">
+
+          <!-- Badge Scène Active -->
+          <div id="hud-scene-pill" class="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-cinzel font-bold text-cyan-300 bg-[#0c0a09] border border-cyan-800/80 shadow cursor-pointer hover:border-cyan-400 transition" title="Scène active de la salle">
+            <span class="text-stone-400 text-[10px]">Scène :</span>
+            <span id="hud-scene-name" class="text-cyan-200">Rez-de-chaussée</span>
+          </div>
 
           <!-- Badge Outil Actif -->
           <div id="hud-active-tool-pill" class="hidden md:flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-cinzel font-bold text-amber-300 bg-[#14100c] border border-[#78350f] shadow-inner">
@@ -1312,13 +1894,24 @@
             </button>
           </div>
 
-          <!-- Système de Tour de Jeu -->
-          <div id="map-turn-banner" class="flex items-center gap-2 bg-[#0c0a09] border border-[#d4af37] px-2.5 py-1 shadow-[0_0_12px_rgba(212,175,55,0.25)]">
+          <!-- Système de Tour de Jeu & Initiative d20 Autonome -->
+          <div id="map-turn-banner" class="flex items-center gap-2 bg-[#0c0a09] border border-[#d4af37] px-2.5 py-1 shadow-[0_0_12px_rgba(212,175,55,0.25)] flex-wrap">
             <span class="text-xs font-bold text-amber-400">⚔</span>
             <div class="flex items-center gap-1.5 text-xs font-cinzel">
+              <span id="turn-round-badge" class="px-1.5 py-0.5 bg-stone-900 border border-[#78350f] text-[10px] text-amber-400 font-bold">M. 1</span>
               <span class="text-stone-400 text-[11px] hidden sm:inline">Tour :</span>
               <span id="turn-active-name" class="font-bold text-[#fde047] truncate max-w-[120px]">En attente</span>
+              <span id="turn-d20-badge" class="hidden px-1.5 py-0.5 bg-amber-950/60 border border-amber-600/60 text-[10px] text-amber-200 font-bold">Init: -</span>
             </div>
+            <!-- Bouton Finir mon tour (visible pour le joueur actif quand c'est son tour) -->
+            <button
+              type="button"
+              id="btn-finish-my-turn"
+              class="hidden px-2 py-0.5 text-[10px] font-cinzel font-bold transition shadow cursor-pointer items-center gap-1 active:scale-95 bg-emerald-950 border border-emerald-500 text-emerald-200 hover:bg-emerald-900"
+              title="Valider la fin de mes actions pour ce tour"
+            >
+              <span>Fin de Tour</span>
+            </button>
             <!-- Bouton Tour Suivant rapide (visible pour le MJ) -->
             <button
               type="button"
@@ -1328,7 +1921,27 @@
             >
               <span>Tour Suiv.</span>
             </button>
+            <!-- Bouton Lancer Initiative autonome (visible pour le MJ) -->
+            <button
+              type="button"
+              id="btn-roll-initiative"
+              class="hidden px-2 py-0.5 text-[10px] font-cinzel font-bold transition shadow cursor-pointer items-center gap-1 active:scale-95 bg-stone-900 border border-amber-600/70 text-amber-300 hover:bg-amber-950/60"
+              title="Lancer l'initiative d20 autonome pour tous les joueurs"
+            >
+              <span>[d20] Initiative</span>
+            </button>
           </div>
+
+          <!-- Bouton Torche Personnelle (accessible aux joueurs pour éclairer à 12m) -->
+          <button
+            type="button"
+            id="btn-toggle-my-torch"
+            class="px-2.5 py-1 text-xs font-cinzel font-bold bg-[#14100c] border border-amber-600/70 text-amber-300 hover:bg-[#261e16] hover:text-[#fde047] transition shadow cursor-pointer flex items-center gap-1.5 active:scale-95"
+            title="Allumer ou éteindre votre torche (rayon 12 mètres pour tout le groupe)"
+          >
+            <span id="torch-status-icon" class="text-amber-400 font-bold">[♨]</span>
+            <span id="torch-status-text">Torche : Éteinte</span>
+          </button>
 
         </div>
 
@@ -1346,6 +1959,52 @@
           </div>
           <button type="button" id="btn-ack-turn" class="ml-2 px-3.5 py-1 bg-[#0c0a09] text-[#fde047] text-xs font-cinzel font-bold hover:bg-stone-900 border border-[#d4af37] transition cursor-pointer shadow">
             J'agis !
+          </button>
+        </div>
+
+        <!-- Palette flottante de réglages de la Craie Tactique -->
+        <div id="chalk-settings-bar" class="absolute top-3 left-3 z-30 hidden flex flex-wrap items-center gap-2 bg-[#0c0a09]/95 border-2 border-amber-700/80 px-3 py-2 shadow-2xl backdrop-blur-md">
+          <div class="flex items-center gap-1.5 border-r border-[#78350f]/60 pr-2">
+            <span class="text-xs font-cinzel font-bold text-amber-300 flex items-center gap-1">
+              <span class="text-amber-400 font-bold">[✎]</span>
+              <span>Craie :</span>
+            </span>
+            <!-- Bascule Éphémère (5s) vs Permanent -->
+            <button
+              type="button"
+              id="chalk-mode-toggle"
+              class="px-2 py-0.5 text-[10px] font-mono font-bold border border-amber-500/70 bg-amber-950/80 text-amber-300 hover:bg-amber-900/80 transition cursor-pointer"
+              title="Basculer entre craie éphémère (disparaît après 5s) et craie permanente"
+            >
+              [Éphémère ~5s]
+            </button>
+          </div>
+
+          <!-- Nuancier de couleurs de craie -->
+          <div class="flex items-center gap-1.5 border-r border-[#78350f]/60 pr-2" id="chalk-color-palette">
+            <button type="button" class="chalk-color-btn w-5 h-5 rounded-full border-2 border-amber-300 bg-slate-100 shadow transition hover:scale-110 cursor-pointer active:scale-95" data-color="#f8fafc" title="Craie Blanche"></button>
+            <button type="button" class="chalk-color-btn w-5 h-5 rounded-full border border-stone-600 bg-amber-400 shadow transition hover:scale-110 cursor-pointer active:scale-95" data-color="#fbbf24" title="Craie Jaune"></button>
+            <button type="button" class="chalk-color-btn w-5 h-5 rounded-full border border-stone-600 bg-rose-500 shadow transition hover:scale-110 cursor-pointer active:scale-95" data-color="#f43f5e" title="Craie Rouge"></button>
+            <button type="button" class="chalk-color-btn w-5 h-5 rounded-full border border-stone-600 bg-sky-400 shadow transition hover:scale-110 cursor-pointer active:scale-95" data-color="#38bdf8" title="Craie Bleue"></button>
+            <button type="button" class="chalk-color-btn w-5 h-5 rounded-full border border-stone-600 bg-emerald-400 shadow transition hover:scale-110 cursor-pointer active:scale-95" data-color="#34d399" title="Craie Verte"></button>
+            <button type="button" class="chalk-color-btn w-5 h-5 rounded-full border border-stone-600 bg-purple-400 shadow transition hover:scale-110 cursor-pointer active:scale-95" data-color="#c084fc" title="Craie Violette"></button>
+          </div>
+
+          <!-- Calibres / Épaisseurs de trait -->
+          <div class="flex items-center gap-1 border-r border-[#78350f]/60 pr-2" id="chalk-width-palette">
+            <button type="button" class="chalk-width-btn px-2 py-0.5 text-[10px] font-mono border border-stone-700 bg-stone-900 text-stone-300 hover:text-white cursor-pointer" data-width="3" title="Trait fin (3px)">Fin</button>
+            <button type="button" class="chalk-width-btn active px-2 py-0.5 text-[10px] font-mono border border-amber-500 bg-amber-950 text-amber-200 cursor-pointer" data-width="6" title="Trait moyen (6px)">Moyen</button>
+            <button type="button" class="chalk-width-btn px-2 py-0.5 text-[10px] font-mono border border-stone-700 bg-stone-900 text-stone-300 hover:text-white cursor-pointer" data-width="12" title="Trait large (12px)">Épais</button>
+          </div>
+
+          <!-- Fermer / Quitter l'outil -->
+          <button
+            type="button"
+            id="btn-close-chalk-bar"
+            class="text-stone-400 hover:text-amber-300 text-xs px-1 font-bold cursor-pointer ml-1"
+            title="Revenir au mode Sélection"
+          >
+            [✕]
           </button>
         </div>
 
@@ -1369,6 +2028,10 @@
               <div id="tooltip-token-hp-bar" class="h-full vial-blood transition-all duration-200" style="width: 100%;"></div>
             </div>
           </div>
+          <div id="tooltip-token-conditions-container" class="mt-1 pt-1.5 border-t border-[#78350f]/40 hidden">
+            <div class="text-[9px] font-cinzel font-bold text-[#78350f] uppercase tracking-wider mb-0.5">Altérations d'état :</div>
+            <div id="tooltip-token-conditions-list" class="flex flex-wrap gap-1"></div>
+          </div>
         </div>
 
         <!-- Mini-HUD d'aide et coordonnées en bas à gauche -->
@@ -1377,6 +2040,8 @@
             <span id="hud-coordinates">X: 0 | Y: 0</span>
             <span class="text-amber-600">•</span>
             <span id="hud-fog-status" class="text-[#fde047]">Brouillard Actif</span>
+            <span class="text-amber-600">•</span>
+            <span id="hud-lighting-status" class="text-sky-300">Plein Jour</span>
           </div>
           <div class="text-[10px] text-stone-400 font-crimson italic hidden md:block">
             Clic Droit / Molette : Pan | Molette : Zoom | Glisser : Déplacer
@@ -1391,6 +2056,203 @@
         <!-- Indicateur de mode Mesure / Gabarit de Sort -->
         <div id="hud-measure-notice" class="absolute top-3 left-1/2 -translate-x-1/2 pointer-events-none z-20 hidden px-4 py-1.5 bg-[#171514]/95 border-2 border-[#d4af37] text-[#fef08a] font-cinzel text-xs font-bold shadow-[0_0_15px_rgba(212,175,55,0.45)]">
           ✦ Mode Tactique : Cliquez et glissez sur la carte pour projeter la mesure ✦
+        </div>
+
+        <!-- Toast de retour visuel lors de l'activation d'un raccourci clavier -->
+        <div id="hud-shortcut-toast" class="absolute bottom-12 left-1/2 -translate-x-1/2 pointer-events-none z-30 hidden px-3.5 py-1 bg-stone-950/90 border border-amber-600 text-amber-300 font-cinzel text-xs font-bold shadow-2xl transition-opacity duration-300">
+          <span id="hud-shortcut-toast-text">✦ Raccourci activé ✦</span>
+        </div>
+
+        <!-- ======================================================== -->
+        <!-- VOLET FLOTTANT ANCRÉ : GUIDE DES RACCOURCIS CLAVIER      -->
+        <!-- ======================================================== -->
+        <div id="tactical-shortcuts-panel" class="absolute top-3 right-3 z-30 flex flex-col items-end pointer-events-auto">
+          
+          <!-- Bouton bascule pour déplier / replier les raccourcis -->
+          <button
+            type="button"
+            id="btn-toggle-shortcuts-panel"
+            class="px-2.5 py-1.5 text-xs font-cinzel font-bold bg-[#0c0a09]/95 border-2 border-amber-700/80 text-amber-300 hover:text-amber-200 hover:border-amber-500 shadow-xl backdrop-blur-md transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+            title="Afficher ou masquer le panneau des raccourcis clavier"
+          >
+            <span class="text-amber-400 font-bold">[⌨]</span>
+            <span>Raccourcis</span>
+            <span id="shortcuts-toggle-arrow" class="text-[10px] text-amber-500 font-mono">◀</span>
+          </button>
+
+          <!-- Conteneur du panneau déroulant -->
+          <div
+            id="shortcuts-panel-content"
+            class="hidden mt-1.5 w-72 sm:w-80 max-h-[66vh] flex flex-col bg-[#0c0a09]/95 border-2 border-[#78350f] shadow-2xl backdrop-blur-md text-stone-200 overflow-hidden"
+          >
+            <!-- En-tête du volet -->
+            <div class="p-2 border-b border-amber-950 bg-[#171412] flex items-center justify-between">
+              <div class="flex items-center gap-1.5">
+                <span class="text-amber-400 font-bold">[⌨]</span>
+                <h4 class="font-cinzel text-xs font-bold text-amber-300 uppercase tracking-wider">Raccourcis Clavier</h4>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="px-1.5 py-0.2 text-[9px] font-mono bg-emerald-950 border border-emerald-700 text-emerald-300">[Actifs]</span>
+                <button
+                  type="button"
+                  id="btn-close-shortcuts-panel"
+                  class="text-stone-400 hover:text-amber-300 text-xs px-1 font-bold cursor-pointer"
+                  title="Replier le panneau"
+                >
+                  [✕]
+                </button>
+              </div>
+            </div>
+
+            <!-- Onglets de filtrage du panneau (Joueur / MJ) -->
+            <div class="flex border-b border-stone-800 text-[10px] font-cinzel font-bold bg-stone-950">
+              <button
+                type="button"
+                id="tab-shortcuts-player"
+                class="flex-1 py-1 px-2 text-center bg-stone-900 text-amber-300 border-b-2 border-amber-500 cursor-pointer"
+              >
+                [Joueur] Général
+              </button>
+              <button
+                type="button"
+                id="tab-shortcuts-mj"
+                class="flex-1 py-1 px-2 text-center text-stone-400 hover:text-stone-200 cursor-pointer"
+              >
+                [MJ] Épique
+              </button>
+            </div>
+
+            <!-- Liste scrollable des raccourcis -->
+            <div id="shortcuts-list-container" class="p-2 space-y-3 overflow-y-auto max-h-[52vh] text-[11px] font-crimson">
+              <!-- Rempli dynamiquement -->
+            </div>
+
+            <!-- Pied de panneau -->
+            <div class="p-1.5 border-t border-stone-800 bg-stone-950/90 text-center text-[10px] font-crimson italic text-stone-400">
+              Actifs uniquement sur la carte tactique • Clic = Activer
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- ======================================================== -->
+    <!-- VUE 4 : CARNET D'ENQUÊTE & TABLEAUX DE LIENS PARTAGÉS    -->
+    <!-- ======================================================== -->
+    <section id="view-investigation" class="spa-view hidden flex-1 flex flex-col space-y-3">
+      
+      <!-- Bandeau d'outils de détective STICKY en haut de l'écran -->
+      <div id="investigation-toolbar" class="sticky top-[52px] sm:top-[56px] z-30 w-full bg-[#0c0a09]/95 backdrop-blur border-b-2 border-[#78350f] p-2 sm:p-2.5 shadow-[0_6px_25px_rgba(0,0,0,0.95)] flex flex-wrap items-center justify-between gap-2">
+        
+        <!-- Titre et compteurs (Gauche) -->
+        <div class="flex items-center gap-2">
+          <span class="text-amber-400 font-bold font-mono text-lg">[#]</span>
+          <div>
+            <h3 class="font-cinzel text-xs font-bold uppercase tracking-wider text-amber-300">✦ Mur d'Enquête & Tableaux de Liens ✦</h3>
+            <p class="font-crimson italic text-[11px] text-stone-400">Épinglez rumeurs, portraits de PNJ et parchemins, puis reliez vos déductions avec des ficelles rouges</p>
+          </div>
+          <div class="hidden md:flex items-center gap-2 ml-3 pl-3 border-l border-amber-950 text-[11px] font-mono">
+            <span id="inv-clues-count" class="px-2 py-0.5 bg-stone-900 border border-stone-700 text-amber-200">0 indices</span>
+            <span id="inv-links-count" class="px-2 py-0.5 bg-stone-900 border border-rose-900 text-rose-300">0 ficelles</span>
+          </div>
+        </div>
+
+        <!-- Outils d'action (Droite) -->
+        <div class="flex items-center flex-wrap gap-1.5 sm:gap-2">
+          <!-- Bouton Ajouter un Indice / Note -->
+          <button
+            type="button"
+            id="btn-inv-add-clue"
+            class="px-2.5 py-1.5 text-xs font-cinzel font-bold bg-amber-950 border border-amber-600 text-amber-200 hover:bg-amber-900 transition flex items-center gap-1.5 cursor-pointer shadow active:scale-95"
+            title="Épingler une nouvelle note, un portrait ou un document"
+          >
+            <span>[+] Épingler un Indice</span>
+          </button>
+
+          <!-- Bouton Mode Ficelle Rouge -->
+          <button
+            type="button"
+            id="btn-inv-toggle-link-mode"
+            class="px-2.5 py-1.5 text-xs font-cinzel font-bold bg-stone-900 border border-rose-700 text-rose-300 hover:bg-rose-950 transition flex items-center gap-1.5 cursor-pointer shadow active:scale-95"
+            title="Activer le mode pour relier deux indices avec une ficelle rouge"
+          >
+            <span id="inv-link-mode-icon">[~]</span>
+            <span id="inv-link-mode-text">Tendre Ficelle</span>
+          </button>
+
+          <!-- Filtres rapides -->
+          <select
+            id="inv-filter-type"
+            class="bg-[#1c1917] border border-stone-700 text-stone-300 text-xs font-cinzel p-1.5 focus:border-amber-500 focus:outline-none"
+            title="Filtrer les indices affichés sur le tableau"
+          >
+            <option value="all">Tous les indices</option>
+            <option value="clue">Notes & Rumeurs</option>
+            <option value="npc">Portraits de PNJ</option>
+            <option value="document">Parchemins & Documents</option>
+            <option value="sealed">Lettres Scellées</option>
+          </select>
+
+          <!-- Bouton Recentrer Vue Tableau -->
+          <button
+            type="button"
+            id="btn-inv-reset-pan"
+            class="px-2 py-1.5 text-xs font-cinzel font-bold bg-stone-900 border border-stone-700 text-stone-300 hover:text-amber-200 transition cursor-pointer active:scale-95"
+            title="Recentrer la vue sur le centre du tableau"
+          >
+            [0] Recentrer
+          </button>
+
+          <!-- Bouton MJ : Vider le tableau -->
+          <button
+            type="button"
+            id="btn-inv-clear-board"
+            class="px-2 py-1.5 text-xs font-cinzel font-bold bg-stone-900 border border-rose-900 text-rose-400 hover:bg-rose-950 transition cursor-pointer hidden active:scale-95"
+            title="Supprimer tous les indices et liens du tableau (Réservé MJ)"
+          >
+            [✕] Vider
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Cadre en chêne et liège sombre autour du Mur de Détective -->
+      <div class="relative w-full h-[74vh] min-h-[540px] bg-[#14100c] border-4 border-[#3e2316] shadow-2xl overflow-hidden select-none cursor-grab" id="investigation-board-container">
+        
+        <!-- Texture et trame de fond subtile -->
+        <div class="absolute inset-0 bg-[radial-gradient(#261810_1.5px,transparent_1.5px)] [background-size:24px_24px] opacity-60 pointer-events-none"></div>
+
+        <!-- Notice en haut en mode ficelle active -->
+        <div id="inv-link-mode-notice" class="absolute top-3 left-1/2 -translate-x-1/2 z-30 hidden px-4 py-1.5 bg-rose-950/95 border-2 border-rose-600 text-rose-200 font-cinzel text-xs font-bold shadow-2xl animate-pulse">
+          ✦ Mode Ficelle Rouge : Cliquez sur le premier indice puis sur le second pour les relier ✦
+        </div>
+
+        <!-- Plan transformable (Pan) pour naviguer librement sur le tableau géant -->
+        <div id="investigation-board-viewport" class="absolute inset-0 origin-top-left">
+          
+          <!-- Calque SVG pour dessiner les ficelles rouges tendues et leurs étiquettes -->
+          <svg id="investigation-svg-layer" class="absolute top-0 left-0 w-[6000px] h-[6000px] pointer-events-none" style="overflow: visible;">
+            <defs>
+              <filter id="string-shadow" x="-20%" y="-20%" width="140%" height="140%">
+                <feDropShadow dx="2" dy="3" stdDeviation="2" flood-color="#000" flood-opacity="0.8" />
+              </filter>
+            </defs>
+            <g id="inv-strings-group"></g>
+          </svg>
+
+          <!-- Calque des cartes et parchemins épinglés -->
+          <div id="investigation-cards-layer" class="absolute top-0 left-0 w-[6000px] h-[6000px] pointer-events-auto">
+            <!-- Rempli dynamiquement -->
+          </div>
+
+        </div>
+
+        <!-- Mini aide en bas à gauche -->
+        <div class="absolute bottom-3 left-3 pointer-events-none z-20 text-[10px] font-mono text-stone-400 bg-black/80 border border-stone-800 px-2.5 py-1 backdrop-blur">
+          Clic Molette / Droit : Glisser le tableau | Déplacer une carte : Glisser-déposer | Clic : Ouvrir dossier
         </div>
 
       </div>
@@ -1860,6 +2722,1118 @@
         >
           Fermer
         </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODALE : ALTÉRATIONS D'ÉTAT & BÉNÉDICTIONS DES PIONS      -->
+  <!-- ======================================================== -->
+  <div id="modal-token-conditions" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm hidden">
+    <div class="relative w-full max-w-xl rpg-panel rpg-corner-brackets shadow-2xl p-6 text-stone-100 space-y-4 border-2 border-amber-900/80">
+      
+      <!-- En-tête -->
+      <div class="flex items-center justify-between border-b border-amber-950 pb-3">
+        <div class="flex items-center gap-2.5">
+          <span class="text-2xl text-amber-400 font-bold">[✦]</span>
+          <div>
+            <h3 class="font-cinzel text-sm font-bold uppercase tracking-wider text-amber-300">✦ Altérations d'État & Bénédictions ✦</h3>
+            <p class="font-crimson italic text-xs text-stone-400">Gérez les altérations tactiques, malédictions et soins des pions</p>
+          </div>
+        </div>
+        <button type="button" id="btn-close-modal-conditions" class="text-stone-400 hover:text-amber-200 text-xl font-bold cursor-pointer transition">✕</button>
+      </div>
+
+      <!-- Sélection du pion cible -->
+      <div class="bg-[#0c0a09]/80 p-3 border border-amber-950/80 space-y-1.5 shadow-inner">
+        <label for="modal-conditions-token-select" class="block font-cinzel text-xs font-bold text-amber-400 uppercase tracking-wider">
+          Pion Cible Sélectionné :
+        </label>
+        <select
+          id="modal-conditions-token-select"
+          class="w-full bg-[#14100c] border border-[#78350f] text-amber-200 px-3 py-1.5 text-xs font-cinzel rounded-none focus:outline-none focus:border-[#d4af37]"
+        >
+          <!-- Options ajoutées dynamiquement -->
+        </select>
+      </div>
+
+      <!-- Section 1 : Altérations actives sur ce pion -->
+      <div class="space-y-2">
+        <div class="flex items-center justify-between">
+          <h4 class="font-cinzel text-xs font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+            <span>[~]</span>
+            <span>Conditions Actives sur ce Pion</span>
+          </h4>
+          <button
+            type="button"
+            id="btn-modal-clear-conditions"
+            class="px-2.5 py-1 text-[10px] font-cinzel font-bold bg-stone-900 border border-sky-600/70 text-sky-300 hover:bg-sky-950/60 transition shadow cursor-pointer active:scale-95"
+            title="Dissiper toutes les altérations d'état de ce pion"
+          >
+            [✦] Purifier Tout
+          </button>
+        </div>
+
+        <div id="modal-conditions-active-list" class="max-h-36 overflow-y-auto space-y-1 pr-1 bg-[#0c0a09]/50 border border-stone-800/80 p-2 min-h-[50px]">
+          <!-- Rempli dynamiquement -->
+        </div>
+      </div>
+
+      <!-- Section 2 : Catalogue des altérations disponibles -->
+      <div class="space-y-2">
+        <div class="flex items-center justify-between">
+          <h4 class="font-cinzel text-xs font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+            <span>[+]</span>
+            <span>Appliquer un État Tactique</span>
+          </h4>
+          <div class="flex items-center gap-1.5 text-[11px] font-cinzel text-stone-300">
+            <span>Durée :</span>
+            <select
+              id="modal-condition-duration-select"
+              class="bg-[#14100c] border border-[#78350f] text-amber-300 px-2 py-0.5 text-[11px] font-bold focus:outline-none focus:border-[#d4af37]"
+            >
+              <option value="1">1 tour</option>
+              <option value="2">2 tours</option>
+              <option value="3" selected>3 tours (défaut)</option>
+              <option value="5">5 tours</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="modal-conditions-catalogue-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
+          <!-- Rempli dynamiquement par app.js -->
+        </div>
+      </div>
+
+      <!-- Bas de modale -->
+      <div class="flex justify-end pt-3 border-t border-[#78350f]/60">
+        <button
+          type="button"
+          id="btn-cancel-modal-conditions"
+          class="rpg-btn px-4 py-1.5 text-xs font-cinzel text-stone-400 hover:text-stone-200 cursor-pointer"
+        >
+          Fermer
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODALE : GESTION DES PIÈGES & DÉCOUVERTES (MJ)           -->
+  <!-- ======================================================== -->
+  <div id="modal-traps-manager" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm hidden">
+    <div class="relative w-full max-w-2xl rpg-panel rpg-corner-brackets shadow-2xl p-6 text-stone-100 space-y-4 border-2 border-indigo-900/80">
+      
+      <!-- En-tête -->
+      <div class="flex items-center justify-between border-b border-indigo-950 pb-3">
+        <div class="flex items-center gap-2.5">
+          <span class="text-2xl text-indigo-400 font-bold">[!]</span>
+          <div>
+            <h3 class="font-cinzel text-sm font-bold uppercase tracking-wider text-indigo-300">✦ Registre des Pièges & Mécanismes Dissimulés ✦</h3>
+            <p class="font-crimson italic text-xs text-stone-400">Contrôlez les seuils de perception passive (DD), l'état et le désamorçage</p>
+          </div>
+        </div>
+        <button type="button" id="btn-close-modal-traps" class="text-stone-400 hover:text-amber-200 text-xl font-bold cursor-pointer transition">✕</button>
+      </div>
+
+      <!-- Compteurs et Statuts Rapides -->
+      <div class="grid grid-cols-4 gap-2 text-center text-xs font-cinzel">
+        <div class="bg-[#0c0a09]/80 p-2 border border-stone-800">
+          <div class="text-[10px] text-stone-400">Total Pièges</div>
+          <div id="trap-stat-total" class="font-bold text-indigo-300 text-base">0</div>
+        </div>
+        <div class="bg-[#0c0a09]/80 p-2 border border-stone-800">
+          <div class="text-[10px] text-amber-400">Dissimulés</div>
+          <div id="trap-stat-hidden" class="font-bold text-amber-400 text-base">0</div>
+        </div>
+        <div class="bg-[#0c0a09]/80 p-2 border border-stone-800">
+          <div class="text-[10px] text-emerald-400">Révélés</div>
+          <div id="trap-stat-revealed" class="font-bold text-emerald-400 text-base">0</div>
+        </div>
+        <div class="bg-[#0c0a09]/80 p-2 border border-stone-800">
+          <div class="text-[10px] text-rose-400">Déclenchés</div>
+          <div id="trap-stat-triggered" class="font-bold text-rose-400 text-base">0</div>
+        </div>
+      </div>
+
+      <!-- Liste dynamique des pièges -->
+      <div class="space-y-2">
+        <div class="flex items-center justify-between">
+          <h4 class="font-cinzel text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
+            <span>[~]</span>
+            <span>Mécanismes Déployés sur le Plateau</span>
+          </h4>
+          <button
+            type="button"
+            id="btn-modal-clear-all-traps"
+            class="px-2.5 py-1 text-[10px] font-cinzel font-bold bg-stone-900 border border-rose-600/70 text-rose-300 hover:bg-rose-950/60 transition shadow cursor-pointer active:scale-95"
+            title="Supprimer tous les pièges de la carte"
+          >
+            [✕] Supprimer Tous
+          </button>
+        </div>
+
+        <div id="modal-traps-list" class="max-h-64 overflow-y-auto space-y-2 pr-1 bg-[#0c0a09]/50 border border-stone-800/80 p-2 min-h-[80px]">
+          <!-- Rempli dynamiquement par app.js -->
+        </div>
+      </div>
+
+      <!-- Bas de modale -->
+      <div class="flex justify-end pt-3 border-t border-[#78350f]/60">
+        <button
+          type="button"
+          id="btn-cancel-modal-traps"
+          class="rpg-btn px-4 py-1.5 text-xs font-cinzel text-stone-400 hover:text-stone-200 cursor-pointer"
+        >
+          Fermer
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODALE : GESTIONNAIRE DE SCÈNES ET DONJONS (MJ)           -->
+  <!-- ======================================================== -->
+  <div id="modal-scene-manager" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm hidden">
+    <div class="relative w-full max-w-2xl rpg-panel rpg-corner-brackets shadow-2xl p-6 text-stone-100 space-y-4 border-2 border-cyan-900/80">
+      
+      <!-- En-tête -->
+      <div class="flex items-center justify-between border-b border-cyan-950 pb-3">
+        <div class="flex items-center gap-2.5">
+          <span class="text-2xl text-cyan-400 font-bold">[⌘]</span>
+          <div>
+            <h3 class="font-cinzel text-sm font-bold uppercase tracking-wider text-cyan-300">✦ Gestionnaire de Scènes & Donjons Multi-Niveaux ✦</h3>
+            <p class="font-crimson italic text-xs text-stone-400">Préparez vos étages, donjons et cartes, puis basculez la table d'un clic</p>
+          </div>
+        </div>
+        <button type="button" id="btn-close-modal-scenes" class="text-stone-400 hover:text-amber-200 text-xl font-bold cursor-pointer transition">✕</button>
+      </div>
+
+      <!-- Liste des scènes existantes -->
+      <div class="space-y-2">
+        <div class="flex items-center justify-between">
+          <h4 class="font-cinzel text-xs font-bold text-cyan-300 uppercase tracking-wider flex items-center gap-1.5">
+            <span>[⊞]</span>
+            <span>Scènes de la Campagne</span>
+          </h4>
+          <button
+            type="button"
+            id="btn-preload-all-scenes"
+            class="px-2.5 py-1 text-[11px] font-cinzel font-bold bg-stone-900 border border-cyan-700 text-cyan-300 hover:bg-cyan-950/80 transition flex items-center gap-1.5 cursor-pointer shadow active:scale-95"
+            title="Précharger toutes les images des scènes en mémoire RAM pour une transition instantanée sans latence"
+          >
+            <span>[⟳] Précharger les cartes</span>
+            <span id="preload-scenes-badge" class="px-1.5 py-0.5 text-[9px] bg-stone-950 border border-cyan-800 text-stone-300 font-mono">0 prêt</span>
+          </button>
+        </div>
+        <div id="modal-scenes-list" class="max-h-56 overflow-y-auto space-y-2 pr-1 bg-[#0c0a09]/50 border border-stone-800/80 p-2 min-h-[80px]">
+          <!-- Rempli dynamiquement -->
+        </div>
+      </div>
+
+      <!-- Formulaire de création d'une nouvelle scène -->
+      <div class="border-t border-stone-800 pt-3 space-y-3 bg-[#0c0a09]/60 p-3 border border-cyan-950">
+        <h4 class="font-cinzel text-xs font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+          <span>[+]</span>
+          <span>Créer une Nouvelle Scène</span>
+        </h4>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <div>
+            <label class="block font-cinzel text-[10px] text-stone-300 mb-1">Nom de la scène</label>
+            <input
+              type="text"
+              id="new-scene-name-input"
+              placeholder="ex: Crypte souterraine, Village extérieur..."
+              class="w-full bg-[#1c1917] border border-stone-700 p-2 text-stone-100 placeholder-stone-500 font-crimson text-sm focus:border-cyan-500 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label class="block font-cinzel text-[10px] text-stone-300 mb-1">Image de fond (Fichier local PC)</label>
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                id="btn-trigger-new-scene-file"
+                class="px-2.5 py-2 bg-stone-900 border border-cyan-800 text-cyan-300 hover:bg-cyan-950 font-cinzel text-[11px] font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap active:scale-95"
+                title="Sélectionner une image de carte sur votre ordinateur"
+              >
+                <span>[+] Parcourir le PC</span>
+              </button>
+              <input type="file" id="new-scene-file-input" accept="image/*" class="hidden" />
+              <div id="new-scene-file-label" class="text-[11px] text-stone-400 font-crimson italic truncate" title="Aucun fichier sélectionné">
+                Aucun fichier (grille par défaut)
+              </div>
+              <button
+                type="button"
+                id="btn-clear-new-scene-file"
+                class="hidden px-1.5 py-1 text-[10px] text-stone-400 hover:text-rose-300 font-cinzel border border-stone-800"
+                title="Retirer ce fichier"
+              >
+                [✕]
+              </button>
+            </div>
+            <div id="new-scene-file-preview-container" class="hidden mt-2 flex items-center gap-2 p-1.5 bg-stone-950 border border-stone-800">
+              <img id="new-scene-file-preview" src="" alt="Aperçu" class="w-10 h-10 object-cover border border-cyan-900" />
+              <div class="text-[10px] font-crimson text-stone-300 flex flex-col truncate">
+                <span id="new-scene-file-name" class="font-bold text-stone-200 truncate"></span>
+                <span id="new-scene-file-size" class="text-stone-400"></span>
+              </div>
+            </div>
+          </div>
+          <div>
+            <label class="block font-cinzel text-[10px] text-stone-300 mb-1">Ambiance lumineuse</label>
+            <select
+              id="new-scene-lighting-select"
+              class="w-full bg-[#1c1917] border border-stone-700 p-2 text-stone-200 font-cinzel text-xs focus:border-cyan-500 focus:outline-none"
+            >
+              <option value="day">Plein Jour (Vision panoramique)</option>
+              <option value="night">Nuit Obscure (Darkvision & Torches)</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-2 pt-4">
+            <label class="flex items-center gap-2 cursor-pointer font-cinzel text-xs text-stone-300">
+              <input type="checkbox" id="new-scene-fog-checkbox" checked class="accent-cyan-600 w-4 h-4" />
+              <span>Activer le brouillard de guerre</span>
+            </label>
+          </div>
+        </div>
+        <div class="flex justify-end">
+          <button
+            type="button"
+            id="btn-create-scene-submit"
+            class="px-4 py-2 font-cinzel text-xs font-bold bg-cyan-950 border border-cyan-600 text-cyan-200 hover:bg-cyan-900 transition shadow cursor-pointer active:scale-95"
+          >
+            [+] Créer la Scène
+          </button>
+        </div>
+      </div>
+
+      <!-- Input invisible pour mettre à jour le fond d'une scène existante depuis le PC -->
+      <input type="file" id="scene-update-bg-file-input" accept="image/*" class="hidden" />
+
+      <!-- Bas de modale -->
+      <div class="flex justify-end pt-2 border-t border-stone-800">
+        <button
+          type="button"
+          id="btn-cancel-modal-scenes"
+          class="rpg-btn px-4 py-1.5 text-xs font-cinzel text-stone-400 hover:text-stone-200 cursor-pointer"
+        >
+          Fermer
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODALE : CONFIGURATION DE POINT DE PASSAGE (TÉLÉPORTEUR) -->
+  <!-- ======================================================== -->
+  <div id="modal-teleport-config" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm hidden">
+    <div class="relative w-full max-w-lg rpg-panel rpg-corner-brackets shadow-2xl p-6 text-stone-100 space-y-4 border-2 border-indigo-900/80">
+      
+      <div class="flex items-center justify-between border-b border-indigo-950 pb-3">
+        <div class="flex items-center gap-2.5">
+          <span class="text-2xl text-cyan-400 font-bold">[▼]</span>
+          <div>
+            <h3 class="font-cinzel text-sm font-bold uppercase tracking-wider text-cyan-300">✦ Point de Transition / Téléporteur ✦</h3>
+            <p class="font-crimson italic text-xs text-stone-400">Positionnez un passage menant vers une autre scène avec arrivée précise</p>
+          </div>
+        </div>
+        <button type="button" id="btn-close-modal-teleport" class="text-stone-400 hover:text-amber-200 text-xl font-bold cursor-pointer transition">✕</button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block font-cinzel text-[10px] text-stone-300 mb-1">Nom du passage</label>
+          <input
+            type="text"
+            id="teleport-input-name"
+            placeholder="ex: Escalier vers la Crypte, Trappe secrète, Portail..."
+            class="w-full bg-[#1c1917] border border-stone-700 p-2 text-stone-100 placeholder-stone-500 font-crimson text-sm focus:border-cyan-500 focus:outline-none"
+          />
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-cinzel text-[10px] text-stone-300 mb-1">Type de passage</label>
+            <select
+              id="teleport-input-type"
+              class="w-full bg-[#1c1917] border border-stone-700 p-2 text-stone-200 font-cinzel text-xs focus:border-cyan-500 focus:outline-none"
+            >
+              <option value="stairs_down">[▼] Escalier Descendant</option>
+              <option value="stairs_up">[▲] Escalier Montant</option>
+              <option value="portal">[◎] Portail Arcanique</option>
+              <option value="ladder">[H] Échelle / Trappe</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-cinzel text-[10px] text-stone-300 mb-1">Scène de Destination</label>
+            <select
+              id="teleport-input-target-scene"
+              class="w-full bg-[#1c1917] border border-stone-700 p-2 text-stone-200 font-cinzel text-xs focus:border-cyan-500 focus:outline-none"
+            >
+              <!-- Rempli dynamiquement -->
+            </select>
+          </div>
+        </div>
+
+        <!-- Coordonnées d'arrivée précises -->
+        <div class="bg-[#0c0a09]/70 p-3 border border-indigo-950 space-y-2">
+          <div class="font-cinzel text-[10px] font-bold text-amber-300 uppercase tracking-wider flex items-center justify-between">
+            <span>Coordonnées d'Arrivée Précises</span>
+            <span class="text-[9px] text-stone-400 font-crimson italic">Point de spawn des aventuriers</span>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block font-cinzel text-[10px] text-stone-400 mb-1">X (pixels)</label>
+              <input
+                type="number"
+                id="teleport-input-target-x"
+                value="500"
+                class="w-full bg-[#1c1917] border border-stone-700 p-1.5 text-stone-100 font-mono text-xs focus:border-cyan-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label class="block font-cinzel text-[10px] text-stone-400 mb-1">Y (pixels)</label>
+              <input
+                type="number"
+                id="teleport-input-target-y"
+                value="500"
+                class="w-full bg-[#1c1917] border border-stone-700 p-1.5 text-stone-100 font-mono text-xs focus:border-cyan-500 focus:outline-none"
+              />
+            </div>
+          </div>
+          <div class="flex items-center gap-1.5 text-[10px] font-cinzel text-stone-400 pt-1">
+            <span>Préréglages :</span>
+            <button type="button" id="btn-teleport-preset-center" class="px-1.5 py-0.5 bg-stone-900 border border-stone-700 hover:text-amber-200 cursor-pointer">Centre (600, 600)</button>
+            <button type="button" id="btn-teleport-preset-north" class="px-1.5 py-0.5 bg-stone-900 border border-stone-700 hover:text-amber-200 cursor-pointer">Nord (600, 200)</button>
+            <button type="button" id="btn-teleport-preset-south" class="px-1.5 py-0.5 bg-stone-900 border border-stone-700 hover:text-amber-200 cursor-pointer">Sud (600, 1000)</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-3 border-t border-stone-800">
+        <button
+          type="button"
+          id="btn-cancel-modal-teleport"
+          class="rpg-btn px-4 py-1.5 text-xs font-cinzel text-stone-400 hover:text-stone-200 cursor-pointer"
+        >
+          Annuler
+        </button>
+        <button
+          type="button"
+          id="btn-confirm-modal-teleport"
+          class="px-4 py-1.5 font-cinzel text-xs font-bold bg-cyan-950 border border-cyan-600 text-cyan-200 hover:bg-cyan-900 transition shadow cursor-pointer active:scale-95"
+        >
+          [✓] Placer le Téléporteur
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODALE : ÉPINGLER UN NOUVEL INDICE / NOTE (ENQUÊTE)      -->
+  <!-- ======================================================== -->
+  <div id="modal-add-clue" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm hidden">
+    <div class="relative w-full max-w-lg rpg-panel rpg-corner-brackets shadow-2xl p-6 text-stone-100 space-y-4 border-2 border-amber-800">
+      
+      <!-- En-tête -->
+      <div class="flex items-center justify-between border-b border-amber-950 pb-3">
+        <div class="flex items-center gap-2.5">
+          <span class="text-2xl text-amber-400 font-bold font-mono">[#]</span>
+          <div>
+            <h3 class="font-cinzel text-sm font-bold uppercase tracking-wider text-amber-300">✦ Épingler au Mur d'Enquête ✦</h3>
+            <p class="font-crimson italic text-xs text-stone-400">Ajoutez une rumeur, un portrait de PNJ, un document ou une lettre scellée</p>
+          </div>
+        </div>
+        <button type="button" id="btn-close-modal-add-clue" class="text-stone-400 hover:text-amber-200 text-xl font-bold cursor-pointer transition">[✕]</button>
+      </div>
+
+      <!-- Formulaire -->
+      <div class="space-y-3 text-xs">
+        
+        <!-- Type d'élément -->
+        <div>
+          <label class="block font-cinzel text-[10px] text-stone-300 mb-1">Type d'élément à épingler</label>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <button type="button" data-clue-type="clue" class="btn-clue-type-select p-2 bg-stone-900 border border-amber-600 text-amber-300 font-cinzel text-[10px] font-bold text-center cursor-pointer transition">
+              [•] Note / Rumeur
+            </button>
+            <button type="button" data-clue-type="npc" class="btn-clue-type-select p-2 bg-stone-950 border border-stone-800 text-stone-400 font-cinzel text-[10px] font-bold text-center cursor-pointer transition hover:text-stone-200">
+              [P] Portrait PNJ
+            </button>
+            <button type="button" data-clue-type="document" class="btn-clue-type-select p-2 bg-stone-950 border border-stone-800 text-stone-400 font-cinzel text-[10px] font-bold text-center cursor-pointer transition hover:text-stone-200">
+              [D] Parchemin
+            </button>
+            <button type="button" data-clue-type="sealed" class="btn-clue-type-select p-2 bg-stone-950 border border-stone-800 text-stone-400 font-cinzel text-[10px] font-bold text-center cursor-pointer transition hover:text-stone-200">
+              [S] Lettre Scellée
+            </button>
+          </div>
+          <input type="hidden" id="new-clue-type-val" value="clue" />
+        </div>
+
+        <!-- Titre -->
+        <div>
+          <label class="block font-cinzel text-[10px] text-stone-300 mb-1">Titre de l'indice ou Nom du PNJ</label>
+          <input
+            type="text"
+            id="new-clue-title-input"
+            placeholder="ex: Témoignage de l'aubergiste, Symbole maudit sur la porte, etc."
+            class="w-full bg-[#1c1917] border border-stone-700 p-2 text-stone-100 placeholder-stone-500 font-crimson text-sm focus:border-amber-500 focus:outline-none"
+          />
+        </div>
+
+        <!-- Description narrative / Récit -->
+        <div>
+          <label class="block font-cinzel text-[10px] text-stone-300 mb-1" id="new-clue-content-label">Contenu de la note / Texte du parchemin</label>
+          <textarea
+            id="new-clue-content-input"
+            rows="3"
+            placeholder="Écrivez ce que vous avez appris, découvert ou entendu..."
+            class="w-full bg-[#1c1917] border border-stone-700 p-2 text-stone-100 placeholder-stone-500 font-crimson text-xs focus:border-amber-500 focus:outline-none"
+          ></textarea>
+        </div>
+
+        <!-- Options conditionnelles PNJ (Statut) -->
+        <div id="new-clue-npc-options" class="hidden grid grid-cols-2 gap-3 bg-stone-950/60 p-2.5 border border-stone-800">
+          <div>
+            <label class="block font-cinzel text-[10px] text-stone-300 mb-1">Statut dans l'enquête</label>
+            <select
+              id="new-clue-status-select"
+              class="w-full bg-[#1c1917] border border-stone-700 p-1.5 text-stone-200 font-cinzel text-xs focus:border-amber-500 focus:outline-none"
+            >
+              <option value="neutral">Neutre / Inconnu</option>
+              <option value="suspect">Suspect</option>
+              <option value="ally">Allié précieux</option>
+              <option value="enemy">Ennemi juré</option>
+              <option value="witness">Témoin clé</option>
+              <option value="missing">Porté disparu</option>
+              <option value="evidence">Pièce à conviction</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-cinzel text-[10px] text-stone-300 mb-1">Rôle / Métier</label>
+            <input
+              type="text"
+              id="new-clue-role-input"
+              placeholder="ex: Alchimiste royal, Garde corrompu..."
+              class="w-full bg-[#1c1917] border border-stone-700 p-1.5 text-stone-100 font-crimson text-xs focus:border-amber-500 focus:outline-none"
+            />
+          </div>
+        </div>
+
+        <!-- Image locale du PC (Optionnel) -->
+        <div>
+          <label class="block font-cinzel text-[10px] text-stone-300 mb-1">Illustration / Portrait / Croquis (Fichier PC)</label>
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              id="btn-trigger-inv-image"
+              class="px-2.5 py-1.5 bg-stone-900 border border-amber-800 text-amber-300 hover:bg-amber-950 font-cinzel text-[10px] font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap active:scale-95"
+            >
+              <span>[+] Parcourir le PC</span>
+            </button>
+            <input type="file" id="inv-clue-image-input" accept="image/*" class="hidden" />
+            <div id="inv-clue-image-label" class="text-[11px] text-stone-400 font-crimson italic truncate">
+              Aucune image jointe
+            </div>
+            <button
+              type="button"
+              id="btn-clear-inv-image"
+              class="hidden px-1.5 py-1 text-[10px] text-stone-400 hover:text-rose-300 font-cinzel border border-stone-800 cursor-pointer"
+            >
+              [✕]
+            </button>
+          </div>
+          <div id="inv-image-preview-container" class="hidden mt-2 flex items-center gap-2 p-1.5 bg-stone-950 border border-stone-800">
+            <img id="inv-image-preview" src="" alt="Aperçu" class="w-12 h-12 object-cover border border-amber-900" />
+            <span id="inv-image-name" class="text-[10px] font-crimson text-stone-300 truncate"></span>
+          </div>
+        </div>
+
+        <!-- Teinte de la note -->
+        <div>
+          <label class="block font-cinzel text-[10px] text-stone-300 mb-1">Teinte du parchemin</label>
+          <div class="flex items-center gap-2">
+            <label class="cursor-pointer flex items-center gap-1 text-[10px] font-cinzel text-stone-300">
+              <input type="radio" name="clue-color" value="#fef3c7" checked class="accent-amber-500" />
+              <span>Parchemin</span>
+            </label>
+            <label class="cursor-pointer flex items-center gap-1 text-[10px] font-cinzel text-rose-300">
+              <input type="radio" name="clue-color" value="#fee2e2" class="accent-rose-500" />
+              <span>Sang</span>
+            </label>
+            <label class="cursor-pointer flex items-center gap-1 text-[10px] font-cinzel text-emerald-300">
+              <input type="radio" name="clue-color" value="#dcfce7" class="accent-emerald-500" />
+              <span>Mystique</span>
+            </label>
+            <label class="cursor-pointer flex items-center gap-1 text-[10px] font-cinzel text-indigo-300">
+              <input type="radio" name="clue-color" value="#e0e7ff" class="accent-indigo-500" />
+              <span>Arcane</span>
+            </label>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Boutons -->
+      <div class="flex items-center justify-end gap-2 border-t border-amber-950 pt-3">
+        <button
+          type="button"
+          id="btn-cancel-modal-add-clue"
+          class="rpg-btn px-4 py-1.5 text-xs font-cinzel text-stone-400 hover:text-stone-200 cursor-pointer"
+        >
+          Annuler
+        </button>
+        <button
+          type="button"
+          id="btn-submit-add-clue"
+          class="px-4 py-1.5 font-cinzel text-xs font-bold bg-amber-950 border border-amber-600 text-amber-200 hover:bg-amber-900 transition shadow cursor-pointer active:scale-95"
+        >
+          [+] Épingler au Mur
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODALE : INSPECTION DU DOSSIER D'INDICE & DÉDUCTIONS     -->
+  <!-- ======================================================== -->
+  <div id="modal-clue-detail" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm hidden">
+    <div class="relative w-full max-w-xl rpg-panel rpg-corner-brackets shadow-2xl p-6 text-stone-100 space-y-4 border-2 border-amber-800">
+      
+      <!-- En-tête -->
+      <div class="flex items-start justify-between border-b border-amber-950 pb-3">
+        <div class="flex items-center gap-2.5">
+          <span id="detail-clue-type-badge" class="px-2 py-0.5 text-[10px] font-cinzel font-bold bg-amber-950 border border-amber-700 text-amber-300">
+            [NOTE]
+          </span>
+          <div>
+            <h3 id="detail-clue-title" class="font-cinzel text-sm font-bold text-amber-200 uppercase tracking-wider">Titre de l'Indice</h3>
+            <div id="detail-clue-meta" class="font-crimson italic text-[11px] text-stone-400">Épinglé par Aventurier</div>
+          </div>
+        </div>
+        <button type="button" id="btn-close-modal-clue-detail" class="text-stone-400 hover:text-amber-200 text-xl font-bold cursor-pointer transition">[✕]</button>
+      </div>
+
+      <!-- Corps du dossier -->
+      <div class="space-y-3 text-xs max-h-[60vh] overflow-y-auto pr-1">
+        
+        <!-- Cas particulier : Lettre scellée non ouverte -->
+        <div id="detail-clue-sealed-box" class="hidden p-4 bg-red-950/40 border-2 border-red-800 text-center space-y-3">
+          <div class="text-3xl font-bold text-red-500 font-mono">[✦ SCEAU DE CIRE ✦]</div>
+          <div class="font-cinzel text-xs font-bold text-red-200 uppercase tracking-wider">Cachet Intact • Contenu Inconnu</div>
+          <p class="font-crimson italic text-xs text-stone-300 max-w-md mx-auto">
+            Cette missive est fermée par un épais sceau de cire écarlate. Son contenu reste dissimulé aux yeux de tous tant qu'un aventurier ne prend pas la décision de rompre le sceau.
+          </p>
+          <button
+            type="button"
+            id="btn-inv-unseal-clue"
+            class="px-4 py-2 font-cinzel text-xs font-black bg-rose-950 border-2 border-rose-500 text-rose-200 hover:bg-rose-900 transition shadow-[0_0_20px_rgba(244,63,94,0.4)] cursor-pointer active:scale-95"
+          >
+            ✦ Briser le Sceau de Cire & Révéler le Contenu ✦
+          </button>
+        </div>
+
+        <!-- Contenu décacheté / Récit de l'indice -->
+        <div id="detail-clue-content-box" class="space-y-3">
+          <!-- Image agrandie si présente -->
+          <div id="detail-clue-image-container" class="hidden text-center">
+            <img id="detail-clue-image" src="" alt="Indice visuel" class="max-h-56 max-w-full mx-auto object-contain border-2 border-amber-900/80 shadow-lg bg-black/60 p-1" />
+          </div>
+
+          <!-- Texte narratif -->
+          <div class="bg-[#14110e] border border-amber-950 p-3 shadow-inner">
+            <h4 class="font-cinzel text-[10px] font-bold uppercase tracking-wider text-amber-400 mb-1">Rapport & Informations</h4>
+            <p id="detail-clue-content" class="font-crimson text-stone-200 text-sm whitespace-pre-line leading-relaxed italic"></p>
+          </div>
+
+          <!-- Statut et rôle PNJ -->
+          <div id="detail-clue-npc-bar" class="hidden flex items-center justify-between p-2 bg-stone-950 border border-stone-800 text-xs">
+            <div class="flex items-center gap-2">
+              <span class="font-cinzel text-[10px] text-stone-400">Statut :</span>
+              <span id="detail-clue-status-badge" class="px-2 py-0.5 font-cinzel text-[10px] font-bold border"></span>
+            </div>
+            <div id="detail-clue-npc-role" class="font-crimson text-stone-300 italic"></div>
+          </div>
+        </div>
+
+        <!-- Section des Hypothèses & Déductions de l'Équipe -->
+        <div class="border-t border-amber-950 pt-3 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <h4 class="font-cinzel text-xs font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+              <span>[?]</span>
+              <span>Hypothèses & Déductions de l'Équipe</span>
+            </h4>
+            <span id="detail-deductions-count" class="text-[10px] font-mono text-stone-400">0 déductions</span>
+          </div>
+
+          <!-- Liste des déductions partagées -->
+          <div id="detail-deductions-list" class="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+            <!-- Rempli dynamiquement -->
+          </div>
+
+          <!-- Champ pour ajouter une déduction -->
+          <div class="flex items-center gap-2 pt-1">
+            <input
+              type="text"
+              id="input-new-deduction"
+              placeholder="Ajoutez votre déduction, théorie ou question sur cet indice..."
+              class="flex-1 bg-[#1c1917] border border-stone-700 p-2 text-stone-100 placeholder-stone-500 font-crimson text-xs focus:border-amber-500 focus:outline-none"
+            />
+            <button
+              type="button"
+              id="btn-submit-deduction"
+              class="px-3 py-2 font-cinzel text-xs font-bold bg-amber-950 border border-amber-600 text-amber-200 hover:bg-amber-900 transition cursor-pointer whitespace-nowrap active:scale-95"
+            >
+              [+] Émettre
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Bas de modale -->
+      <div class="flex items-center justify-between border-t border-amber-950 pt-3">
+        <button
+          type="button"
+          id="btn-inv-delete-clue"
+          class="px-3 py-1.5 text-xs font-cinzel font-bold bg-stone-900 border border-rose-900 text-rose-300 hover:bg-rose-950 transition cursor-pointer"
+        >
+          [✕] Détacher l'Indice
+        </button>
+
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            id="btn-inv-link-from-detail"
+            class="px-3 py-1.5 text-xs font-cinzel font-bold bg-stone-900 border border-rose-700 text-rose-300 hover:bg-rose-950 transition cursor-pointer"
+          >
+            [~] Tendre une Ficelle
+          </button>
+          <button
+            type="button"
+            id="btn-cancel-modal-clue-detail"
+            class="rpg-btn px-4 py-1.5 text-xs font-cinzel text-stone-400 hover:text-stone-200 cursor-pointer"
+          >
+            Fermer
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODALE : CRÉATION D'UNE FICELLE DE LIAISON (ENQUÊTE)     -->
+  <!-- ======================================================== -->
+  <div id="modal-add-link" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm hidden">
+    <div class="relative w-full max-w-md rpg-panel rpg-corner-brackets shadow-2xl p-5 text-stone-100 space-y-3 border-2 border-rose-900">
+      
+      <div class="flex items-center justify-between border-b border-rose-950 pb-2">
+        <div class="flex items-center gap-2">
+          <span class="text-rose-400 font-bold font-mono text-xl">[~]</span>
+          <h3 class="font-cinzel text-xs font-bold uppercase tracking-wider text-rose-300">✦ Tendre une Ficelle Rouge ✦</h3>
+        </div>
+        <button type="button" id="btn-close-modal-add-link" class="text-stone-400 hover:text-rose-300 text-lg font-bold cursor-pointer">[✕]</button>
+      </div>
+
+      <div class="text-xs space-y-2">
+        <div class="p-2 bg-stone-950 border border-stone-800 text-[11px] font-crimson text-stone-300 flex items-center justify-between">
+          <span id="link-from-title" class="font-bold text-amber-300 truncate max-w-[140px]">Indice A</span>
+          <span class="text-rose-400 font-bold font-mono">──[~]──></span>
+          <span id="link-to-title" class="font-bold text-amber-300 truncate max-w-[140px]">Indice B</span>
+        </div>
+
+        <div>
+          <label class="block font-cinzel text-[10px] text-stone-300 mb-1">Nature de la relation (Optionnel)</label>
+          <input
+            type="text"
+            id="inv-link-label-input"
+            placeholder="ex: Suspecté de, Même symbole, Vu ensemble, Alibi contesté..."
+            class="w-full bg-[#1c1917] border border-stone-700 p-2 text-stone-100 placeholder-stone-500 font-crimson text-xs focus:border-rose-500 focus:outline-none"
+          />
+        </div>
+
+        <div>
+          <label class="block font-cinzel text-[10px] text-stone-300 mb-1">Couleur de la ficelle</label>
+          <div class="flex items-center gap-3">
+            <label class="cursor-pointer flex items-center gap-1 text-[10px] font-cinzel text-rose-400">
+              <input type="radio" name="link-color" value="#ef4444" checked class="accent-rose-500" />
+              <span>Rouge Détective</span>
+            </label>
+            <label class="cursor-pointer flex items-center gap-1 text-[10px] font-cinzel text-amber-400">
+              <input type="radio" name="link-color" value="#eab308" class="accent-amber-500" />
+              <span>Fil Doré</span>
+            </label>
+            <label class="cursor-pointer flex items-center gap-1 text-[10px] font-cinzel text-sky-400">
+              <input type="radio" name="link-color" value="#06b6d4" class="accent-sky-500" />
+              <span>Lien Arcanique</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 border-t border-rose-950 pt-2">
+        <button
+          type="button"
+          id="btn-cancel-modal-add-link"
+          class="rpg-btn px-3 py-1 text-xs font-cinzel text-stone-400 hover:text-stone-200 cursor-pointer"
+        >
+          Annuler
+        </button>
+        <button
+          type="button"
+          id="btn-confirm-add-link"
+          class="px-4 py-1.5 font-cinzel text-xs font-bold bg-rose-950 border border-rose-600 text-rose-200 hover:bg-rose-900 transition shadow cursor-pointer active:scale-95"
+        >
+          [✓] Tendre la Ficelle
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODALE : INSPECTION D'OBJET & PNJ "BAC À SABLE"          -->
+  <!-- ======================================================== -->
+  <div id="modal-prop-detail" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm hidden">
+    <div class="relative w-full max-w-xl rpg-panel rpg-corner-brackets shadow-2xl p-6 text-stone-100 space-y-4 border-2 border-amber-700">
+      
+      <!-- En-tête -->
+      <div class="flex items-start justify-between border-b border-amber-950 pb-3">
+        <div class="flex items-center gap-3">
+          <div id="prop-detail-icon" class="w-10 h-10 flex items-center justify-center bg-stone-900 border border-amber-600/80 text-amber-300 font-bold font-mono text-xl shadow">
+            [■]
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h3 id="prop-detail-name" class="font-cinzel text-base font-bold text-amber-200 uppercase tracking-wider">Coffre Ancien</h3>
+              <span id="prop-detail-state" class="px-2 py-0.5 text-[10px] font-mono font-bold bg-amber-950 border border-amber-600/80 text-amber-300">Intact</span>
+            </div>
+            <div class="font-crimson italic text-[11px] text-stone-400">Élément interactif de décor • Bac à sable narratif</div>
+          </div>
+        </div>
+        <button type="button" id="btn-close-modal-prop-detail" class="text-stone-400 hover:text-amber-200 text-xl font-bold cursor-pointer transition">[✕]</button>
+      </div>
+
+      <!-- Corps de l'élément -->
+      <div class="space-y-3 text-xs max-h-[60vh] overflow-y-auto pr-1">
+        
+        <!-- Illustration (si fournie) -->
+        <div id="prop-detail-img-box" class="hidden w-full h-44 overflow-hidden border border-amber-950/80 bg-stone-950 shadow-inner relative flex items-center justify-center">
+          <img id="prop-detail-img" src="" alt="Illustration" class="w-full h-full object-contain" />
+        </div>
+
+        <!-- Description publique narrative -->
+        <div>
+          <h4 class="font-cinzel text-[11px] font-bold text-amber-400 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+            <span>[✦]</span> Description & Observations
+          </h4>
+          <div id="prop-detail-desc" class="p-3 bg-stone-950/90 border border-amber-950 font-crimson text-sm text-stone-200 leading-relaxed whitespace-pre-line select-text">
+            Aucune description disponible.
+          </div>
+        </div>
+
+        <!-- Document / Parchemin révélé (Secret Document) -->
+        <div id="prop-detail-doc-box" class="hidden p-3.5 bg-[#1a140e] border-2 border-[#b45309] shadow-xl text-amber-100 font-crimson text-sm leading-relaxed whitespace-pre-line select-text relative">
+          <div class="flex items-center justify-between border-b border-[#b45309]/50 pb-1.5 mb-2">
+            <span class="font-cinzel font-bold text-xs uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+              <span>[B]</span> Document / Message Découvert
+            </span>
+            <span class="text-[10px] font-mono text-amber-400/80">[Révélé aux Aventuriers]</span>
+          </div>
+          <div id="prop-detail-doc-text" class="italic text-stone-200">
+            <!-- Texte du document révélé -->
+          </div>
+        </div>
+
+        <!-- Notes secrètes du Maître du Jeu (Visible MJ uniquement) -->
+        <div id="prop-detail-secret-box" class="hidden p-3 bg-red-950/40 border border-red-800/80 font-crimson text-xs text-red-200 leading-relaxed whitespace-pre-line select-text">
+          <div class="font-cinzel font-bold text-[11px] text-red-300 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+            <span>[!]</span> Notes Secrètes du MJ
+          </div>
+          <div id="prop-detail-secret-text">
+            <!-- Notes privées MJ -->
+          </div>
+        </div>
+
+        <!-- Espace d'action et d'improvisation pour les Joueurs -->
+        <div id="prop-player-interaction-box" class="p-2.5 bg-stone-950 border border-stone-800 space-y-2">
+          <label class="block font-cinzel text-[10px] text-stone-300">Tenter une action / Improviser une interaction :</label>
+          <div class="flex items-center gap-2">
+            <input
+              type="text"
+              id="prop-action-input"
+              placeholder="ex: Je verse de l'eau bénite sur l'autel, j'examine les serrures..."
+              class="flex-1 bg-stone-900 border border-stone-700 p-1.5 text-stone-100 placeholder-stone-500 font-crimson text-xs focus:border-amber-500 focus:outline-none"
+            />
+            <button
+              type="button"
+              id="btn-prop-send-action"
+              class="px-3 py-1.5 font-cinzel text-xs font-bold bg-amber-950 border border-amber-600 text-amber-200 hover:bg-amber-900 transition cursor-pointer"
+            >
+              [Agir]
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Barre d'outils et commandes MJ -->
+      <div class="border-t border-amber-950 pt-3 flex flex-wrap items-center justify-between gap-2">
+        <div id="prop-mj-actions" class="hidden flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            id="btn-prop-edit-open"
+            class="px-2.5 py-1 text-xs font-cinzel font-bold bg-stone-900 border border-amber-600 text-amber-200 hover:bg-stone-800 cursor-pointer"
+            title="Modifier les propriétés, documents et notes de cet objet"
+          >
+            [✎ Éditer]
+          </button>
+          <button
+            type="button"
+            id="btn-prop-toggle-doc-reveal"
+            class="px-2.5 py-1 text-xs font-cinzel font-bold bg-stone-900 border border-stone-700 text-stone-300 hover:text-white cursor-pointer"
+            title="Révéler ou cacher le parchemin secret aux joueurs"
+          >
+            [✦ Révéler Parchemin]
+          </button>
+          <button
+            type="button"
+            id="btn-prop-trigger-door"
+            class="hidden px-2.5 py-1 text-xs font-cinzel font-bold bg-emerald-950 border border-emerald-600 text-emerald-200 hover:bg-emerald-900 cursor-pointer"
+            title="Actionner et basculer l'état de la porte liée"
+          >
+            [⊓ Actionner Porte]
+          </button>
+          <button
+            type="button"
+            id="btn-prop-export-clue"
+            class="px-2.5 py-1 text-xs font-cinzel font-bold bg-rose-950 border border-rose-700 text-rose-200 hover:bg-rose-900 cursor-pointer"
+            title="Épingler une copie de cet objet sur le Mur d'Enquête"
+          >
+            [# Épingler Enquête]
+          </button>
+        </div>
+
+        <button
+          type="button"
+          id="btn-cancel-modal-prop-detail"
+          class="rpg-btn px-4 py-1.5 text-xs font-cinzel text-stone-400 hover:text-stone-200 cursor-pointer ml-auto"
+        >
+          Fermer
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODALE : CRÉATION & ÉDITION D'OBJET "BAC À SABLE" (MJ)    -->
+  <!-- ======================================================== -->
+  <div id="modal-prop-edit" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm hidden">
+    <div class="relative w-full max-w-xl rpg-panel rpg-corner-brackets shadow-2xl p-6 text-stone-100 space-y-4 border-2 border-amber-600">
+      
+      <!-- En-tête -->
+      <div class="flex items-center justify-between border-b border-amber-950 pb-2.5">
+        <div class="flex items-center gap-2.5">
+          <span class="text-amber-400 font-bold font-mono text-xl">[■]</span>
+          <div>
+            <h3 id="prop-edit-modal-title" class="font-cinzel text-xs font-bold uppercase tracking-wider text-amber-300">✦ Fiche Objet / PNJ Personnalisé ✦</h3>
+            <p class="font-crimson italic text-[11px] text-stone-400">Bac à sable narratif • Déposez n'importe quel élément interactif</p>
+          </div>
+        </div>
+        <button type="button" id="btn-close-modal-prop-edit" class="text-stone-400 hover:text-amber-300 text-lg font-bold cursor-pointer">[✕]</button>
+      </div>
+
+      <!-- Formulaire -->
+      <div class="space-y-3 text-xs max-h-[62vh] overflow-y-auto pr-1">
+        
+        <!-- Nom et Statut -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-cinzel text-[10px] text-stone-300 mb-1">Nom de l'élément *</label>
+            <input
+              type="text"
+              id="prop-edit-name"
+              placeholder="ex: Coffre vermoulu, Autel de sang, Levier en bronze..."
+              class="w-full bg-[#1c1917] border border-stone-700 p-2 text-stone-100 placeholder-stone-500 font-crimson text-xs focus:border-amber-500 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label class="block font-cinzel text-[10px] text-stone-300 mb-1">État / Statut initial</label>
+            <input
+              type="text"
+              id="prop-edit-state"
+              placeholder="ex: Intact, Fermé, Verrouillé, Fouillé, Allumé..."
+              class="w-full bg-[#1c1917] border border-stone-700 p-2 text-stone-100 placeholder-stone-500 font-crimson text-xs focus:border-amber-500 focus:outline-none"
+            />
+          </div>
+        </div>
+
+        <!-- Symbole & Calibre -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-cinzel text-[10px] text-stone-300 mb-1">Icône / Symbole</label>
+            <select
+              id="prop-edit-icon"
+              class="w-full bg-[#1c1917] border border-stone-700 p-2 text-stone-100 font-mono text-xs focus:border-amber-500 focus:outline-none cursor-pointer"
+            >
+              <option value="[■]">[■] Coffre / Malle</option>
+              <option value="[T]">[T] Levier / Manivelle</option>
+              <option value="[+]">[+] Autel / Relique</option>
+              <option value="[B]">[B] Grimoire / Parchemin</option>
+              <option value="[X]">[X] Cadavre / Squelette</option>
+              <option value="[S]">[S] Statue / Monolithe</option>
+              <option value="[♨]">[♨] Brasero / Foyer</option>
+              <option value="[O]">[O] Puits / Bassin</option>
+              <option value="[#]">[#] Barricade / Décombres</option>
+              <option value="[?]">[?] Mystère / Autre</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-cinzel text-[10px] text-stone-300 mb-1">Taille du pion sur la carte</label>
+            <select
+              id="prop-edit-size"
+              class="w-full bg-[#1c1917] border border-stone-700 p-2 text-stone-100 font-mono text-xs focus:border-amber-500 focus:outline-none cursor-pointer"
+            >
+              <option value="36">Petit (36 px • 0.75 case)</option>
+              <option value="44" selected>Normal (44 px • 1 case standard)</option>
+              <option value="60">Grand (60 px • ~1.5 case)</option>
+              <option value="80">Énorme (80 px • 2 cases)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Image locale depuis l'ordinateur -->
+        <div>
+          <label class="block font-cinzel text-[10px] text-stone-300 mb-1">Illustration / Portrait (Optionnel)</label>
+          <div class="flex items-center gap-2">
+            <input type="file" id="prop-edit-file" accept="image/*" class="hidden" />
+            <button
+              type="button"
+              id="btn-prop-browse-pc"
+              class="px-3 py-1.5 text-xs font-cinzel font-bold bg-stone-900 border border-amber-600/80 text-amber-200 hover:bg-stone-800 transition cursor-pointer flex items-center gap-1.5"
+            >
+              <span>[+]</span>
+              <span>Parcourir le PC</span>
+            </button>
+            <input
+              type="text"
+              id="prop-edit-img-url"
+              placeholder="ou URL directe d'image..."
+              class="flex-1 bg-[#1c1917] border border-stone-700 p-1.5 text-stone-100 placeholder-stone-500 font-crimson text-xs focus:border-amber-500 focus:outline-none"
+            />
+            <button
+              type="button"
+              id="btn-prop-clear-img"
+              class="text-stone-400 hover:text-rose-400 text-xs px-2 py-1 font-bold cursor-pointer"
+              title="Retirer l'image"
+            >
+              [✕]
+            </button>
+          </div>
+          <div id="prop-edit-img-preview-box" class="hidden mt-2 h-28 w-full border border-stone-800 bg-stone-950 flex items-center justify-center overflow-hidden">
+            <img id="prop-edit-img-preview" src="" alt="Aperçu" class="h-full object-contain" />
+          </div>
+        </div>
+
+        <!-- Description publique (Joueurs) -->
+        <div>
+          <label class="block font-cinzel text-[10px] text-stone-300 mb-1">Description Narrative Publique (Visible par les Aventuriers)</label>
+          <textarea
+            id="prop-edit-desc"
+            rows="3"
+            placeholder="Ce que les joueurs voient et ressentent en examinant l'élément..."
+            class="w-full bg-[#1c1917] border border-stone-700 p-2 text-stone-100 placeholder-stone-500 font-crimson text-xs focus:border-amber-500 focus:outline-none resize-none"
+          ></textarea>
+        </div>
+
+        <!-- Document / Parchemin secret révélé -->
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="block font-cinzel text-[10px] text-amber-300">Document Secret / Parchemin Découvert (Optionnel)</label>
+            <label class="cursor-pointer flex items-center gap-1.5 text-[10px] font-mono text-amber-200">
+              <input type="checkbox" id="prop-edit-doc-revealed" class="accent-amber-500" />
+              <span>Révéler immédiatement aux joueurs</span>
+            </label>
+          </div>
+          <textarea
+            id="prop-edit-doc"
+            rows="3"
+            placeholder="Texte d'une lettre scellée, formule magique, fragment de journal, testament..."
+            class="w-full bg-[#1c1917] border border-amber-900/60 p-2 text-stone-100 placeholder-stone-500 font-crimson text-xs focus:border-amber-500 focus:outline-none resize-none"
+          ></textarea>
+        </div>
+
+        <!-- Porte liée & Automatisme narratif sans script -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-cinzel text-[10px] text-stone-300 mb-1">Lier à une Porte interactive (ex: levier)</label>
+            <select
+              id="prop-edit-door-select"
+              class="w-full bg-[#1c1917] border border-stone-700 p-2 text-stone-100 font-mono text-xs focus:border-amber-500 focus:outline-none cursor-pointer"
+            >
+              <option value="">Aucune porte liée</option>
+              <!-- Rempli dynamiquement avec les portes de la scène -->
+            </select>
+          </div>
+          <div>
+            <label class="block font-cinzel text-[10px] text-stone-300 mb-1">Rayon d'interaction à portée</label>
+            <select
+              id="prop-edit-radius"
+              class="w-full bg-[#1c1917] border border-stone-700 p-2 text-stone-100 font-mono text-xs focus:border-amber-500 focus:outline-none cursor-pointer"
+            >
+              <option value="60">Contact immédiat (60 px • ~1 m)</option>
+              <option value="120" selected>Portée standard (120 px • ~2 m)</option>
+              <option value="200">Zone large (200 px • ~3.5 m)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Notes secrètes du MJ (Privé) -->
+        <div>
+          <label class="block font-cinzel text-[10px] text-red-300 mb-1">Notes Secrètes du MJ (Privé • Caché aux joueurs)</label>
+          <textarea
+            id="prop-edit-secret"
+            rows="2"
+            placeholder="Mécanismes cachés, DD de désamorçage, contenu du coffre, conséquences imprévues..."
+            class="w-full bg-[#1c1917] border border-red-900/60 p-2 text-stone-100 placeholder-stone-500 font-crimson text-xs focus:border-red-500 focus:outline-none resize-none"
+          ></textarea>
+        </div>
+
+      </div>
+
+      <!-- Boutons d'action -->
+      <div class="flex items-center justify-between border-t border-amber-950 pt-2.5">
+        <button
+          type="button"
+          id="btn-prop-delete-edit"
+          class="hidden px-3 py-1.5 font-cinzel text-xs font-bold text-rose-400 hover:text-rose-200 bg-rose-950/40 border border-rose-900 cursor-pointer"
+        >
+          [✕ Supprimer l'Objet]
+        </button>
+        <div class="flex items-center gap-2 ml-auto">
+          <button
+            type="button"
+            id="btn-cancel-modal-prop-edit"
+            class="rpg-btn px-4 py-1.5 text-xs font-cinzel text-stone-400 hover:text-stone-200 cursor-pointer"
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            id="btn-save-prop-edit"
+            class="px-5 py-1.5 font-cinzel text-xs font-bold bg-amber-600 hover:bg-amber-500 text-stone-950 transition shadow-md cursor-pointer active:scale-95"
+          >
+            [✓ Enregistrer]
+          </button>
+        </div>
       </div>
 
     </div>

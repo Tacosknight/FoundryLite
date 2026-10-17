@@ -33,12 +33,12 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// Instance Multer configurée (limite à 10 Mo par fichier)
+// Instance Multer configurée (limite à 50 Mo par fichier pour battlemaps haute résolution)
 const upload = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: 10 * 1024 * 1024 // 10 Mo
+    fileSize: 50 * 1024 * 1024 // 50 Mo
   }
 });
 
