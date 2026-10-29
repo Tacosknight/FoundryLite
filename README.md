@@ -206,33 +206,62 @@ L'application assure une synchronisation multijoueur en temps réel via WebSocke
 ### Prérequis et Installation
 
 #### Prérequis
-- Node.js (version 18.x ou supérieure)
-- Navigateur moderne prenant en charge les WebSockets, Canvas 2D et la Web Audio API
-
-#### Installation
-1. Cloner le dépôt :
-```bash
-git clone https://github.com/Tacosknight/FoundryLite.git
-cd FoundryLite
-```
-
-2. Installer les dépendances :
-```bash
-npm install
-```
-
-3. Configurer l'environnement :
-*Sous Linux/macOS ou PowerShell :*
-```bash
-cp .env.example .env
-```
-*Sous Windows (Invite de commandes classique) :*
-```cmd
-copy .env.example .env
-```
-*(Le port par défaut est `3000`. Modifiez `PORT` dans `.env` si nécessaire).*
+- **Node.js** (version 18.x ou supérieure / v18.x or higher) — *npm est automatiquement inclus avec l'installateur officiel.*
+- Navigateur moderne prenant en charge WebSockets, Canvas 2D et Web Audio API.
 
 ---
+
+#### Méthode 1 : Démarrage Rapide en 1 clic (Recommandé)
+
+Après avoir cloné ou téléchargé le projet :
+
+- **Sous Windows :**
+  Double-cliquez simplement sur le fichier `start.bat` (ou lancez-le depuis votre terminal).
+- **Sous Linux / macOS :**
+  ```bash
+  chmod +x start.sh
+  ./start.sh
+  ```
+
+> *Ces scripts vérifient automatiquement Node.js, génèrent le fichier `.env` si nécessaire, installent les dépendances manquantes (`npm install`), puis lancent le serveur.*
+
+---
+
+#### Méthode 2 : Installation Manuelle (Terminal)
+
+1. **Cloner le dépôt :**
+   ```bash
+   git clone https://github.com/Tacosknight/FoundryLite.git
+   cd FoundryLite
+   ```
+
+2. **Installer les dépendances :**
+   ```bash
+   npm install
+   ```
+
+3. **Créer le fichier de configuration :**
+   - *Windows (Invite de commandes CMD) :*
+     ```cmd
+     copy .env.example .env
+     ```
+   - *Linux / macOS / PowerShell :*
+     ```bash
+     cp .env.example .env
+     ```
+   *(Le port par défaut est `3000`. Vous pouvez éditer `PORT` dans `.env` si besoin).*
+
+4. **Lancer le serveur :**
+   - Mode développement (rechargement à chaud) :
+     ```bash
+     npm run dev
+     ```
+   - Mode production :
+     ```bash
+     npm start
+     ```
+
+Accès à l'application : [http://localhost:3000](http://localhost:3000)
 
 ### Guide d'Utilisation
 
