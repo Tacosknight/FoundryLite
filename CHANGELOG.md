@@ -4,6 +4,14 @@ Toutes les modifications notables apportées à la plateforme Foundry Lite sont 
 
 ---
 
+## [v1.1.0] - 2026-11-11
+
+- Réorganisation du stockage, des sessions et des médias ; outil hors ligne de migration des médias legacy avec simulation par défaut, formats limités et sauvegarde préalable. Voir le [guide d'exploitation](docs/OPERATIONS.md) pour les limites et précautions.
+- Ajout de l'import JSON depuis l'interface MJ ; les exports ne contiennent pas les fichiers médias.
+- Tests Chromium ciblés : récupération d'identité, invitation, personnage, tour volontaire, restauration et export/import. La recette complète et la revue de sécurité restent à réaliser avant un déploiement en production.
+
+---
+
 ## [v1.0.0] - 2026-10-17 - Release Officielle "Table Ronde Forgée"
 
 Cette version 1.0.0 marque l'aboutissement de la plateforme complète de Table Ronde Virtuelle (VTT) dark fantasy, intégrant un moteur de combat tactique en temps réel, un système d'ambiance et de vision dynamique, une gestion de donjons multi-étages 100% locale, un tableau d'enquête collaboratif et une liberté d'improvisation totale sans contrainte de script.
@@ -41,9 +49,10 @@ Cette version 1.0.0 marque l'aboutissement de la plateforme complète de Table R
 * **Moteur Canvas 2D fluide :** Déplacement continu et libre sans blocage de quadrillage (1 case = 1.5 m = 50 px).
 * **Trajectoire directe & graduations métriques :** Ligne droite continue avec encoches de distance tous les 1.5 m et silhouette de pion fantôme (Ghost Token) à l'arrivée.
 * **Suppression des checkpoints encombrants :** Retrait complet des jalons intermédiaires numérotés pour un glisser-déposer naturel, immédiat et lisible.
-* **Gestion des tours de jeu & Course (Dash) :**
-  * Zone de mouvement standard (cercle bleu) et zone de course / Dash (cercle jaune).
-  * Si un joueur déplace son pion au-delà de sa vitesse standard, son tour est automatiquement validé et consommé.
+* **Zone de mouvement délimitée & Maîtrise totale du tour :**
+  * Périmètre de déplacement direct (halo bleu) calculé selon la race, la classe et l'état du joueur (terrain difficile, à terre).
+  * Le pion du joueur est physiquement restreint à son rayon de déplacement alloué lors du glisser-déposer : impossible de dépasser sa portée autorisée.
+  * Suppression totale du saut de tour automatique lors du déplacement : le joueur conserve l'entière maîtrise de son tour et confirme sa fin manuellement (bouton ou raccourci `P`).
   * Sonnerie arcanique procédurale (Web Audio API) et bannière d'alerte lors du tour actif.
 * **Navigation fluide :** Déplacement panoramique à la souris et zoom progressif centré sur le curseur.
 

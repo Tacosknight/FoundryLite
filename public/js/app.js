@@ -3,13 +3,45 @@
  */
 
 // Initialisation du client Socket.io (reste ouvert en permanence entre les vues SPA)
-const socket = io();
+const socket = io({ autoConnect: false });
+let CURRENT_EPOCH = null;
+const sessionReady = fetch('/api/session', { credentials: 'same-origin' })
+  .then(r => r.json())
+  .then(async status => {
+    if (!status.authenticated) {
+      const response = await fetch('/api/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const result = await response.json();
+      if (!result.success) throw new Error(result.error);
+      if (result.recoveryCode) {
+        const notice = document.createElement('div');
+        notice.className = 'rpg-panel p-4 m-4';
+        notice.setAttribute('role', 'status');
+        const label = document.createElement('p');
+        label.textContent = 'Conservez ce code personnel de récupération dans un endroit sûr. Il ne sera plus affiché :';
+        const code = document.createElement('input'); code.readOnly = true; code.value = result.recoveryCode;
+        code.setAttribute('aria-label', 'Code personnel de récupération'); code.className = 'w-full p-2 bg-stone-900 text-amber-200';
+        const close = document.createElement('button'); close.textContent = 'Code conservé, masquer'; close.addEventListener('click', () => notice.remove());
+        notice.append(label, code, close); document.body.prepend(notice);
+      }
+    }
+    socket.connect();
+  }).catch(error => { alert(`Connexion personnelle impossible : ${error.message}`); throw error; });
 
 // Configuration de la salle et rôle du client actuel (défini lors de la création / connexion)
 let CURRENT_ROOM = null;
 let CURRENT_ROLE = 'player';
 let CURRENT_USER_NAME = '';
 let myAssignedSlot = null;
+let myCharacterId = null;
+
+function assignMyCharacter(character) {
+  myCharacterId = character?.id ?? null;
+  myAssignedSlot = character?.slot ?? null;
+}
+
+function isMyPlayerToken(token) {
+  return token?.type === 'player' && Number.isInteger(myAssignedSlot) && token.slot === myAssignedSlot;
+}
 
 // Cache local des personnages (pour pré-remplir la modale MJ)
 const charactersCache = new Map();
@@ -588,7 +620,7 @@ function renderColorPalette() {
   const takenColors = new Set();
   charactersCache.forEach((char) => {
     // Si ce n'est pas le personnage du joueur connecté
-    if (char && char.color && char.socketId !== socket.id) {
+    if (char && char.color && char.id !== myCharacterId) {
       takenColors.add(char.color.toLowerCase());
     }
   });
@@ -1045,7 +1077,7 @@ function updateForgeModeUI() {
  */
 function getMyCharacter() {
   const currentChars = Array.from(charactersCache.values());
-  return currentChars.find(c => c.socketId === socket.id) || null;
+  return currentChars.find(c => c.id === myCharacterId) || null;
 }
 
 // ============================================================
@@ -1099,7 +1131,7 @@ async function compressAndUploadImage(file) {
             const formData = new FormData();
             formData.append('file', blob, 'item.webp');
 
-            const res = await fetch('/api/upload', {
+            const res = await fetch(`/api/upload?roomId=${encodeURIComponent(CURRENT_ROOM || '')}`, {
               method: 'POST',
               body: formData
             });
@@ -1360,6 +1392,7 @@ function updateCharactersGrid(characters = []) {
     html += createCharacterCardHTML(char);
   });
   grid.innerHTML = html;
+  refreshCharacterConditions();
 
   // Si un tour est en cours, réactiver l'aura dorée sur la fiche concernée
   if (tacticalMapState.currentTurn) {
@@ -1374,6 +1407,27 @@ function updateCharactersGrid(characters = []) {
 
   // Mettre à jour le mode de la Forge de Personnage (Création complète vs Renommer uniquement)
   updateForgeModeUI();
+}
+
+// Les conditions proviennent uniquement des pions effectivement synchronisés.
+function refreshCharacterConditions() {
+  document.querySelectorAll('#characters-grid article[data-slot]').forEach((card) => {
+    const slot = Number(card.dataset.slot);
+    const token = (tacticalMapState.tokens || []).find((t) => t.type === 'player' && Number(t.slot) === slot);
+    let display = card.querySelector('.character-conditions');
+    if (!display) {
+      display = document.createElement('div');
+      display.className = 'character-conditions';
+      card.appendChild(display);
+    }
+    if (!token || !Array.isArray(token.conditions)) {
+      display.textContent = 'Conditions : données du pion indisponibles';
+    } else if (!token.conditions.length) {
+      display.textContent = 'Conditions : aucune';
+    } else {
+      display.textContent = `Conditions : ${token.conditions.filter(Boolean).map((c) => `${c.name || c.id || 'Condition'}${typeof c.duration === 'number' ? ` (${c.duration} tours)` : ''}`).join(', ')}`;
+    }
+  });
 }
 
 /**
@@ -1403,6 +1457,8 @@ function renderCharacter(slot, char) {
     updateCharactersGrid(currentChars);
     return;
   }
+
+  refreshCharacterConditions();
 
   // Nom & Classe
   const nameEl = card.querySelector('.char-name');
@@ -1862,6 +1918,7 @@ socket.on('connect', () => {
       username: CURRENT_ROLE === 'mj' ? 'Maître du Jeu' : (CURRENT_USER_NAME || 'Joueur'),
       role: CURRENT_ROLE
     }, (res) => {
+      if (res?.success) { CURRENT_ROLE = res.user.role; CURRENT_EPOCH = res.epoch; assignMyCharacter(res.character); applyRolePermissions(); }
       if (res?.characters) {
         updateCharactersGrid(res.characters);
       }
@@ -2098,8 +2155,7 @@ socket.on('turn:changed', ({ currentTurn, round, turnOrder, isNewRound }) => {
     }
 
     const isMyTurn = (CURRENT_ROLE === 'player') && (
-      (typeof myAssignedSlot === 'number' && currentTurn.slot === myAssignedSlot) ||
-      (CURRENT_USER_NAME && currentTurn.name && currentTurn.name.toLowerCase() === CURRENT_USER_NAME.toLowerCase())
+      (typeof myAssignedSlot === 'number' && currentTurn.slot === myAssignedSlot)
     );
 
     if (isMyTurn) {
@@ -2381,6 +2437,8 @@ socket.on('draw:cleared', ({ author, all }) => {
 });
 
 // Réception d'un signal d'attention lumineux (Ping animé)
+['map:token_added', 'map:token_removed', 'token:conditions_updated', 'map:trap_triggered', 'map:hazard_triggered'].forEach((event) => socket.on(event, refreshCharacterConditions));
+
 socket.on('map:ping', ({ ping }) => {
   if (!ping) return;
   activePings.push({
@@ -2833,7 +2891,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (response?.success) {
             CURRENT_USER_NAME = name;
             if (response.character) {
-              myAssignedSlot = response.character.slot;
+              assignMyCharacter(response.character);
             }
             if (chatSenderInput) {
               chatSenderInput.value = name;
@@ -2870,7 +2928,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (joinForm) {
-    joinForm.addEventListener('submit', (e) => {
+    joinForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const roomId = document.getElementById('roomId')?.value.trim() || 'table-ronde';
       const username = document.getElementById('username')?.value.trim();
@@ -2881,7 +2939,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      logLobby(`Connexion à la salle "${roomId}" en tant que ${username} (${role})...`, 'text-sky-400');
+      logLobby(`Connexion à la salle "${roomId}" en tant que ${username}...`, 'text-sky-400');
 
       // Mettre à jour l'expéditeur du chat avec le pseudo et le rôle
       if (chatSenderInput) {
@@ -2890,10 +2948,19 @@ document.addEventListener('DOMContentLoaded', () => {
       CURRENT_ROLE = role;
       CURRENT_USER_NAME = username;
 
-      // Émission de l'événement room:join
-      socket.emit('room:join', { roomId, username, role }, (res) => {
+      await sessionReady;
+      if (!socket.connected) await new Promise(resolve => socket.once('connect', resolve));
+      if (document.getElementById('campaign-create')?.checked) {
+        const created = await new Promise(resolve => socket.emit('room:create', { roomId }, resolve));
+        if (!created?.success) { logLobby(created?.error || 'Création impossible.', 'text-rose-400'); return; }
+      }
+      const invitationCode = document.getElementById('campaign-invitation')?.value.trim();
+      socket.emit('room:join', { roomId, username, invitationCode }, (res) => {
         if (res?.success) {
           CURRENT_ROOM = roomId;
+          CURRENT_ROLE = res.user.role;
+          CURRENT_EPOCH = res.epoch;
+          assignMyCharacter(res.character);
           logLobby(`Succès ! Salle "${roomId}" rejointe. Total connectés : ${res.room.users.length}`, 'text-emerald-400 font-bold');
           
           // Mise à jour de l'affichage de la salle dans la navbar
@@ -2921,10 +2988,8 @@ document.addEventListener('DOMContentLoaded', () => {
           setConnectionStatus(true);
 
           // Si c'est un joueur avec un personnage déjà forgé (partie sauvegardée), l'assigner
-          const existingChar = res.character || (Array.isArray(res.characters) ? res.characters.find(c => c.socketId === socket.id || (c.name && c.name.toLowerCase() === username.toLowerCase())) : null);
-          if (existingChar) {
-            myAssignedSlot = existingChar.slot;
-          }
+          const existingChar = res.character;
+          assignMyCharacter(existingChar);
           const hasForgedChar = existingChar && existingChar.created;
 
           if (hasForgedChar && charNameInput) {
@@ -3312,6 +3377,7 @@ function updateTacticalMapState(newMap) {
     ...newMap
   };
   if (!Array.isArray(tacticalMapState.tokens)) tacticalMapState.tokens = [];
+  refreshCharacterConditions();
   if (!Array.isArray(tacticalMapState.revealedAreas)) tacticalMapState.revealedAreas = [];
   if (!Array.isArray(tacticalMapState.walls)) tacticalMapState.walls = [];
   if (!Array.isArray(tacticalMapState.lights)) tacticalMapState.lights = [];
@@ -3604,22 +3670,7 @@ function computeVisibilityPolygon(originX, originY, maxRadius, walls) {
  */
 function getMyPlayerToken() {
   const tokens = tacticalMapState.tokens || [];
-  if (typeof myAssignedSlot === 'number') {
-    const found = tokens.find((t) => t.type === 'player' && t.slot === myAssignedSlot);
-    if (found) return found;
-  }
-  if (CURRENT_USER_NAME) {
-    const found = tokens.find((t) => t.type === 'player' && t.name && t.name.toLowerCase() === CURRENT_USER_NAME.toLowerCase());
-    if (found) return found;
-  }
-  const myChar = [...charactersCache.values()].find(
-    (c) => c && (c.socketId === socket.id || (c.name && CURRENT_USER_NAME && c.name.toLowerCase() === CURRENT_USER_NAME.toLowerCase()))
-  );
-  if (myChar) {
-    const found = tokens.find((t) => t.type === 'player' && t.slot === myChar.slot);
-    if (found) return found;
-  }
-  return null;
+  return tokens.find(isMyPlayerToken) || null;
 }
 
 /**
@@ -3723,13 +3774,7 @@ function isTokenVisibleToCurrentClient(token) {
   if (!token) return false;
 
   const isInvis = hasTokenCondition(token, 'invisible');
-  const isMyToken = token.type === 'player' && (
-    (typeof myAssignedSlot === 'number' && token.slot === myAssignedSlot) ||
-    (CURRENT_USER_NAME && token.name && token.name.toLowerCase() === CURRENT_USER_NAME.toLowerCase()) ||
-    Boolean([...charactersCache.values()].find(
-      (c) => c && c.slot === token.slot && (c.socketId === socket.id || (c.name && CURRENT_USER_NAME && c.name.toLowerCase() === CURRENT_USER_NAME.toLowerCase()))
-    ))
-  );
+  const isMyToken = isMyPlayerToken(token);
 
   // Feature 5 : Invisibilité
   // Le pion devient invisible même pour les ennemis ayant une ligne de vue directe.
@@ -4891,6 +4936,7 @@ function findTriggeredTrapAlongPath(path, tokenRadius = 20) {
  * permet de déceler des pièges dissimulés dans son champ de vision
  */
 function checkPassivePerceptionForTraps() {
+  return; // Perception is authoritative on the server.
   if (CURRENT_ROLE === 'mj') return;
   const myToken = getMyPlayerToken();
   if (!myToken) return;
@@ -5087,28 +5133,18 @@ function drawMovementHalo(ctx, token, isHover, isDrag, dragStart) {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // 2. Cercle de mouvement standard (Zone Bleue - ex. 9m / 300px)
+    // 2. Périmètre de déplacement autorisé (Zone Bleue délimitée)
     ctx.beginPath();
     ctx.arc(dragStart.x, dragStart.y, speed.standardPx, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(56, 189, 248, 0.10)';
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.12)';
     ctx.fill();
     ctx.strokeStyle = '#38bdf8';
-    ctx.lineWidth = 1.8;
-    ctx.setLineDash([6, 5]);
-    ctx.stroke();
-
-    // 3. Cercle d'action Course / Dash (Cercle Jaune - Limite stricte de déplacement, ex. 18m / 600px)
-    ctx.beginPath();
-    ctx.arc(dragStart.x, dragStart.y, speed.dashPx, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(234, 179, 8, 0.06)';
-    ctx.fill();
-    ctx.strokeStyle = '#eab308';
     ctx.lineWidth = 2;
-    ctx.setLineDash([10, 6]);
+    ctx.setLineDash([6, 5]);
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // 4. Tracé du Chemin direct de déplacement
+    // 3. Tracé du Chemin direct de déplacement
     const p1 = dragStart;
     const p2 = { x: token.x, y: token.y };
     const segDist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
@@ -5129,8 +5165,6 @@ function drawMovementHalo(ctx, token, isHover, isDrag, dragStart) {
       if (col.collided) {
         segColor = '#ef4444'; // Alerte collision rouge vive
         segWidth = 3.5;
-      } else if (segDist > speed.standardPx) {
-        segColor = '#eab308'; // Zone de Course (Dash)
       }
 
       // Ligne pointillée
@@ -5161,7 +5195,7 @@ function drawMovementHalo(ctx, token, isHover, isDrag, dragStart) {
           ctx.beginPath();
           ctx.moveTo(tx - nx * 6, ty - ny * 6);
           ctx.lineTo(tx + nx * 6, ty + ny * 6);
-          ctx.strokeStyle = col.collided ? '#ef4444' : (segDist > speed.standardPx ? '#fde047' : '#7dd3fc');
+          ctx.strokeStyle = col.collided ? '#ef4444' : '#7dd3fc';
           ctx.lineWidth = 1.5;
           ctx.stroke();
         }
@@ -5197,12 +5231,12 @@ function drawMovementHalo(ctx, token, isHover, isDrag, dragStart) {
       trajText = isChasm
         ? `✕ Trajectoire Obstruée : Gouffre Infranchissable Détecté ! ✕`
         : `✕ Trajectoire Obstruée : Mur de Pierre Détecté ! ✕`;
-    } else if (cumulativeDistPx > speed.standardPx) {
-      trajColor = '#eab308';
-      trajBorder = '#ca8a04';
+    } else if (cumulativeDistPx >= speed.standardPx - 1) {
+      trajColor = '#38bdf8';
+      trajBorder = '#0284c7';
       trajText = speed.isSlowed
-        ? `[>>] Course Ralentie (Dash -50%) : ${totalDistM.toFixed(1)} m / ${speed.dashM.toFixed(1)} m (${totalCases.toFixed(1)} c) - Fin de tour auto ! [>>]`
-        : `[>>] Course (Dash) : ${totalDistM.toFixed(1)} m / ${speed.dashM.toFixed(1)} m (${totalCases.toFixed(1)} c) - Fin de tour auto ! [>>]`;
+        ? `✦ Limite Mouvement Ralenti Atteinte : ${totalDistM.toFixed(1)} m / ${speed.standardM.toFixed(1)} m (${totalCases.toFixed(1)} c) ✦`
+        : `✦ Limite de Mouvement Atteinte : ${totalDistM.toFixed(1)} m / ${speed.standardM.toFixed(1)} m (${totalCases.toFixed(1)} c) ✦`;
     }
 
     drawMapBadge(
@@ -5805,7 +5839,23 @@ function drawToken(ctx, token, isHovered, isDragged) {
   ctx.textBaseline = 'middle';
   ctx.font = `${Math.round(radius * 1.15)}px sans-serif`;
   const iconStr = token.icon || (token.name ? token.name[0].toUpperCase() : '[X]');
-  ctx.fillText(iconStr, token.x, token.y + 1);
+  let portrait = token.imageUrl && propImageCache.get(token.imageUrl);
+  if (token.imageUrl && !portrait) {
+    portrait = new Image();
+    portrait.onload = requestMapRender;
+    portrait.src = token.imageUrl;
+    propImageCache.set(token.imageUrl, portrait);
+  }
+  if (portrait?.complete && portrait.naturalWidth > 0) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(token.x, token.y, Math.max(2, radius - 4), 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(portrait, token.x - radius, token.y - radius, radius * 2, radius * 2);
+    ctx.restore();
+  } else {
+    ctx.fillText(iconStr, token.x, token.y + 1);
+  }
 
   // Cartouche de nom sous le pion
   const nameText = token.name || (isMonster ? 'Monstre' : 'Joueur');
@@ -7073,19 +7123,13 @@ function canUserMoveToken(token) {
 
   // Un joueur ne peut déplacer que son propre pion et UNIQUEMENT pendant son tour actif
   if (token.type === 'player') {
-    const isOwner = (typeof myAssignedSlot === 'number' && token.slot === myAssignedSlot) ||
-      (CURRENT_USER_NAME && token.name && token.name.toLowerCase() === CURRENT_USER_NAME.toLowerCase()) ||
-      Boolean([...charactersCache.values()].find(
-        (c) => c && c.slot === token.slot && (c.socketId === socket.id || (c.name && CURRENT_USER_NAME && c.name.toLowerCase() === CURRENT_USER_NAME.toLowerCase()))
-      ));
+    const isOwner = isMyPlayerToken(token);
 
     if (!isOwner) return false;
 
     // Vérification stricte du tour de jeu
     if (!tacticalMapState.currentTurn) return false;
-    const isMyTurn = (typeof myAssignedSlot === 'number' && tacticalMapState.currentTurn.slot === myAssignedSlot) ||
-      (CURRENT_USER_NAME && tacticalMapState.currentTurn.name && tacticalMapState.currentTurn.name.toLowerCase() === CURRENT_USER_NAME.toLowerCase()) ||
-      (token.slot === tacticalMapState.currentTurn.slot);
+    const isMyTurn = Number.isInteger(myAssignedSlot) && tacticalMapState.currentTurn.slot === myAssignedSlot;
 
     return Boolean(isMyTurn);
   }
@@ -7954,13 +7998,7 @@ function initTacticalMapUI() {
             } else if (hasTokenCondition(clickedToken, 'asleep')) {
               alert('Action impossible : Ce pion est plongé dans un profond sommeil magique !');
             } else {
-              const isOwner = clickedToken.type === 'player' && (
-                (typeof myAssignedSlot === 'number' && clickedToken.slot === myAssignedSlot) ||
-                (CURRENT_USER_NAME && clickedToken.name && clickedToken.name.toLowerCase() === CURRENT_USER_NAME.toLowerCase()) ||
-                Boolean([...charactersCache.values()].find(
-                  (c) => c && c.slot === clickedToken.slot && (c.socketId === socket.id || (c.name && CURRENT_USER_NAME && c.name.toLowerCase() === CURRENT_USER_NAME.toLowerCase()))
-                ))
-              );
+              const isOwner = isMyPlayerToken(clickedToken);
               if (isOwner) {
                 const activeTurnName = tacticalMapState.currentTurn?.name || 'En attente';
                 alert(`Action impossible : Ce n'est pas votre tour d'agir ! (Tour actif : ${activeTurnName})`);
@@ -8097,14 +8135,14 @@ function initTacticalMapUI() {
       const currentPath = [dragTokenInitialPos, { x: targetX, y: targetY }];
       const speed = getTokenSpeed(draggedToken, currentPath);
 
-      // Restriction du déplacement au cercle de Course (Dash) pour les joueurs
+      // Restriction physique du déplacement à la zone de mouvement autorisée pour les joueurs
       if (CURRENT_ROLE !== 'mj') {
         const dX = targetX - dragTokenInitialPos.x;
         const dY = targetY - dragTokenInitialPos.y;
         const distFromStart = Math.hypot(dX, dY);
-        if (distFromStart > speed.dashPx) {
-          targetX = dragTokenInitialPos.x + (dX / distFromStart) * speed.dashPx;
-          targetY = dragTokenInitialPos.y + (dY / distFromStart) * speed.dashPx;
+        if (distFromStart > speed.standardPx) {
+          targetX = dragTokenInitialPos.x + (dX / distFromStart) * speed.standardPx;
+          targetY = dragTokenInitialPos.y + (dY / distFromStart) * speed.standardPx;
         }
       }
 
@@ -8137,11 +8175,12 @@ function initTacticalMapUI() {
       const now = Date.now();
       if (now - lastMoveEmitTime > 30 && CURRENT_ROOM) {
         lastMoveEmitTime = now;
-        socket.emit('map:move_token', {
+        socket.emit('map:move_token', { epoch: CURRENT_EPOCH,
           roomId: CURRENT_ROOM,
           tokenId: draggedToken.id,
           x: draggedToken.x,
           y: draggedToken.y,
+          preview: true,
           role: CURRENT_ROLE
         });
       }
@@ -8508,118 +8547,32 @@ function initTacticalMapUI() {
     }
 
     if (draggedToken) {
-      const tokenRadius = (draggedToken.size || 40) / 2;
-      const fullPath = [dragTokenInitialPos, { x: draggedToken.x, y: draggedToken.y }];
-      const speed = getTokenSpeed(draggedToken, fullPath);
-
-      // Vérifier si la trajectoire franchit un mur ou un gouffre
-      const col = checkWallCollision(dragTokenInitialPos.x, dragTokenInitialPos.y, draggedToken.x, draggedToken.y, tokenRadius);
-      const hasWallCollision = col.collided;
-      const collidedWall = col.wall;
-
-      // Calculer la distance de déplacement direct
-      const totalMovedDist = Math.hypot(draggedToken.x - dragTokenInitialPos.x, draggedToken.y - dragTokenInitialPos.y);
-
-      if (hasWallCollision && CURRENT_ROLE !== 'mj') {
-        // Bloquer et réinitialiser à la position initiale
-        draggedToken.x = dragTokenInitialPos.x;
-        draggedToken.y = dragTokenInitialPos.y;
-        if (CURRENT_ROOM) {
-          socket.emit('map:move_token', {
-            roomId: CURRENT_ROOM,
-            tokenId: draggedToken.id,
-            x: draggedToken.x,
-            y: draggedToken.y,
-            role: CURRENT_ROLE
-          });
-        }
-        const isChasm = collidedWall?.wallType === 'chasm' || collidedWall?.blocksLight === false;
-        const msg = isChasm
-          ? 'Trajectoire bloquée : votre chemin traverse un gouffre infranchissable !'
-          : 'Trajectoire bloquée : votre chemin traverse un mur de pierre infranchissable !';
-        alert(msg);
-      } else {
-        // Feature 4 : Détection du déclenchement d'un piège sur le trajet
-        let trapTriggered = null;
-        if (CURRENT_ROLE !== 'mj') {
-          trapTriggered = findTriggeredTrapAlongPath(fullPath, tokenRadius);
-        }
-
-        if (trapTriggered && CURRENT_ROLE !== 'mj') {
-          // Arrêt forcé immédiat du pion sur la case exacte du piège
-          draggedToken.x = trapTriggered.x;
-          draggedToken.y = trapTriggered.y;
-          if (CURRENT_ROOM) {
-            socket.emit('map:move_token', {
-              roomId: CURRENT_ROOM,
-              tokenId: draggedToken.id,
-              x: draggedToken.x,
-              y: draggedToken.y,
-              role: CURRENT_ROLE
-            });
-            socket.emit('map:trigger_trap', {
-              roomId: CURRENT_ROOM,
-              trapId: trapTriggered.id,
-              tokenId: draggedToken.id
-            });
-          }
-          exploreCurrentPosition();
-          checkPassivePerceptionForTraps();
-
-          const isPassage = trapTriggered.subType === 'secret_passage';
-          const alertMsg = isPassage
-            ? `Découverte ! ${draggedToken.name || 'Un aventurier'} a révélé un passage secret dissimulé !`
-            : `ALERTE PIÈGE DÉCLENCHÉ ! ${draggedToken.name || 'Le pion'} s'est pris dans : ${trapTriggered.label || 'un piège'} ! Déplacement interrompu immédiatement.`;
-          alert(alertMsg);
-        } else {
-          // Pas de piège déclenché : position finale validée
-          if (CURRENT_ROOM) {
-            socket.emit('map:move_token', {
-              roomId: CURRENT_ROOM,
-              tokenId: draggedToken.id,
-              x: draggedToken.x,
-              y: draggedToken.y,
-              role: CURRENT_ROLE
-            });
-          }
-
-          if (CURRENT_ROLE !== 'mj') {
-            exploreCurrentPosition();
-            checkPassivePerceptionForTraps();
-
-            // Feature 3 : Vérifier si le pion s'arrête sur une zone de danger actif
-            const hazard = findHazardZoneAtPoint(draggedToken.x, draggedToken.y);
-            if (hazard && CURRENT_ROOM) {
-              socket.emit('map:hazard_damage', {
-                roomId: CURRENT_ROOM,
-                zoneId: hazard.id,
-                tokenId: draggedToken.id
+      // Preview remains local; the server alone accepts movement and applies traps/hazards.
+      const movedTokenId = draggedToken.id;
+      if (CURRENT_ROOM) {
+        socket.emit('map:move_token', {
+          epoch: CURRENT_EPOCH,
+          operationId: crypto.randomUUID(),
+          roomId: CURRENT_ROOM,
+          tokenId: movedTokenId,
+          x: draggedToken.x,
+          y: draggedToken.y
+        }, (response) => {
+          if (response?.success && response.token) {
+            const index = tacticalMapState.tokens.findIndex(t => t.id === movedTokenId);
+            if (index !== -1) tacticalMapState.tokens[index] = response.token;
+            const teleporter = findTeleporterAtPoint(response.token.x, response.token.y, 35);
+            if (teleporter && response.token.type === 'player') {
+              socket.emit('scene:trigger_teleporter', {
+                roomId: CURRENT_ROOM, epoch: CURRENT_EPOCH,
+                teleporterId: teleporter.id, tokenId: movedTokenId
               });
             }
+          } else if (response?.error) {
+            console.warn('Déplacement refusé :', response.error);
           }
-
-          // Feature 6 : Vérifier si un pion joueur marche sur un téléporteur / escalier de transition
-          const teleporter = findTeleporterAtPoint(draggedToken.x, draggedToken.y, 35);
-          if (teleporter && CURRENT_ROOM && draggedToken.type === 'player') {
-            socket.emit('scene:trigger_teleporter', {
-              roomId: CURRENT_ROOM,
-              teleporterId: teleporter.id,
-              tokenId: draggedToken.id
-            });
-          }
-
-          // Feature 2 & 6 : Si le joueur a déplacé son pion au-delà de la zone bleue (vers le cercle jaune Course/Dash),
-          // son tour saute automatiquement !
-          if (CURRENT_ROLE !== 'mj' && totalMovedDist > speed.standardPx) {
-            const distM = (totalMovedDist / 50) * 1.5;
-            socket.emit('turn:finish', {
-              roomId: CURRENT_ROOM,
-              slot: draggedToken.slot,
-              reason: 'dash',
-              dist: distM
-            });
-          }
-        }
+          requestMapRender();
+        });
       }
 
       dragWaypoints = [];
@@ -9047,7 +9000,7 @@ function initPropsUI() {
       const formData = new FormData();
       formData.append('image', file);
 
-      fetch('/api/upload', {
+      fetch(`/api/upload?roomId=${encodeURIComponent(CURRENT_ROOM || '')}`, {
         method: 'POST',
         body: formData
       })
@@ -9431,7 +9384,7 @@ function initMapBgModalUI() {
           const formData = new FormData();
           formData.append('file', selectedMapFile);
 
-          const response = await fetch('/api/upload', {
+          const response = await fetch(`/api/upload?roomId=${encodeURIComponent(CURRENT_ROOM || '')}`, {
             method: 'POST',
             body: formData
           });
@@ -9545,8 +9498,7 @@ function updateTurnDisplay(currentTurn) {
   const btnFinish = document.getElementById('btn-finish-my-turn');
   const isMyTurn = (CURRENT_ROLE === 'player') && Boolean(
     currentTurn && (
-      (typeof myAssignedSlot === 'number' && currentTurn.slot === myAssignedSlot) ||
-      (CURRENT_USER_NAME && currentTurn.name && currentTurn.name.toLowerCase() === CURRENT_USER_NAME.toLowerCase())
+      (typeof myAssignedSlot === 'number' && currentTurn.slot === myAssignedSlot)
     )
   );
 
@@ -10357,7 +10309,7 @@ function refreshSceneManagerModalUI() {
               ${ramStatusBadge}
             </div>
             <div class="font-crimson italic text-[11px] text-stone-400">
-              Pions: ${s.tokensCount ?? 0} | Téléporteurs: ${s.teleportersCount ?? 0} | Ambiance: ${s.lightingMode === 'night' ? 'Nuit' : 'Jour'}
+              Pions: ${s.tokenCount ?? 0} | Téléporteurs: ${s.teleporterCount ?? 0} | Ambiance: ${s.lightingMode === 'night' ? 'Nuit' : 'Jour'}
             </div>
           </div>
         </div>
@@ -10745,7 +10697,7 @@ function initSceneManagerModalUI() {
       try {
         const formData = new FormData();
         formData.append('file', file);
-        const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData });
+        const uploadRes = await fetch(`/api/upload?roomId=${encodeURIComponent(CURRENT_ROOM || '')}`, { method: 'POST', body: formData });
         const uploadData = await uploadRes.json();
 
         if (uploadData?.success && uploadData.url) {
@@ -10801,7 +10753,7 @@ function initSceneManagerModalUI() {
         try {
           const formData = new FormData();
           formData.append('file', newSceneSelectedFile);
-          const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData });
+          const uploadRes = await fetch(`/api/upload?roomId=${encodeURIComponent(CURRENT_ROOM || '')}`, { method: 'POST', body: formData });
           const uploadData = await uploadRes.json();
 
           if (uploadData?.success && uploadData.url) {
@@ -10915,8 +10867,9 @@ function showShortcutTriggerFeedback(actionName) {
 function toggleNearestDoor() {
   const myToken = typeof getMyPlayerToken === 'function' ? getMyPlayerToken() : null;
   const canvas = document.getElementById('tactical-map-canvas');
-  const searchX = myToken ? myToken.x : (-mapPanX + (canvas ? canvas.width / (2 * mapZoom) : 600));
-  const searchY = myToken ? myToken.y : (-mapPanY + (canvas ? canvas.height / (2 * mapZoom) : 600));
+  const rect = canvas?.getBoundingClientRect();
+  const searchX = myToken ? myToken.x : ((rect ? rect.width / 2 : 600) - mapCamera.x) / mapCamera.zoom;
+  const searchY = myToken ? myToken.y : ((rect ? rect.height / 2 : 600) - mapCamera.y) / mapCamera.zoom;
 
   const doors = (tacticalMapState.walls || []).filter((w) => w.type === 'door');
   if (doors.length === 0) {
@@ -10957,22 +10910,10 @@ function toggleNearestDoor() {
 /**
  * Valide le tour du joueur ou passe au tour suivant (MJ)
  */
-function passOrAckTurn() {
-  const btnAckTurn = document.getElementById('btn-ack-turn');
-  const alertContainer = document.getElementById('turn-player-alert');
-  if (alertContainer && !alertContainer.classList.contains('hidden') && btnAckTurn) {
-    btnAckTurn.click();
-    showShortcutTriggerFeedback('Tour confirmé');
-    return;
-  }
-
-  const btnNext = document.getElementById('btn-next-turn');
-  if (btnNext && CURRENT_ROLE === 'mj') {
-    btnNext.click();
-    showShortcutTriggerFeedback('Tour suivant');
-  } else {
-    showShortcutTriggerFeedback('En attente de votre tour');
-  }
+function finishMyTurnShortcut() {
+  const btn = document.getElementById('btn-finish-my-turn');
+  if (btn && !btn.disabled && btn.getClientRects().length) btn.click();
+  else showShortcutTriggerFeedback('Fin de tour indisponible');
 }
 
 // Données exhaustives des raccourcis clavier pour Joueurs et MJ
@@ -10981,11 +10922,12 @@ const TACTICAL_SHORTCUTS = {
     {
       category: 'Déplacement & Caméra',
       items: [
-        { key: 'C / Espace', action: 'Centrer caméra sur mon héros', run: () => { const tok = getMyPlayerToken(); tok ? centerCameraOnToken(tok) : centerMapCamera(); } },
+        { key: 'C', action: 'Centrer caméra sur mon héros', run: () => { const tok = getMyPlayerToken(); tok ? centerCameraOnToken(tok) : centerMapCamera(); } },
         { key: 'V', action: 'Mode Déplacer pions (Sélection)', run: () => setMapTool('select') },
         { key: 'O', action: 'Mode Caméra libre (Pan)', run: () => setMapTool('pan') },
-        { key: '+ / -', action: 'Zoom Avant / Zoom Arrière', run: () => { mapZoom = Math.min(3, mapZoom * 1.2); requestMapRender(); } },
-        { key: '0', action: 'Réinitialiser Zoom (100%) & Vue globale', run: () => { mapZoom = 1; centerMapCamera(); requestMapRender(); } },
+        { key: '+', action: 'Zoom avant', run: () => setZoom(mapCamera.zoom * 1.2) },
+        { key: '-', action: 'Zoom arrière', run: () => setZoom(mapCamera.zoom / 1.2) },
+        { key: '0', action: 'Réinitialiser le zoom (100%)', run: () => setZoom(1) },
       ]
     },
     {
@@ -10996,8 +10938,8 @@ const TACTICAL_SHORTCUTS = {
         { key: 'M', action: 'Outil Règle & Mesure de distance', run: () => setMapTool('measure') },
         { key: 'Q', action: 'Craie Tactique (Dessin libre à main levée)', run: () => setMapTool('chalk') },
         { key: 'Shift + Q', action: 'Gomme à Craie permanente', run: () => setMapTool('chalk-eraser') },
-        { key: 'Alt + Clic / I', action: 'Signal d\'Attention lumineux (Ping)', run: () => setMapTool('ping') },
-        { key: 'P', action: 'Valider / Confirmer mon tour de jeu', run: () => passOrAckTurn() },
+        { key: 'I', action: 'Signal d\'Attention lumineux (Ping)', run: () => setMapTool('ping') },
+        { key: 'P', action: 'Terminer mon tour', run: () => finishMyTurnShortcut() },
       ]
     }
   ],
@@ -11009,32 +10951,28 @@ const TACTICAL_SHORTCUTS = {
         { key: 'D', action: 'Poser une Porte interactive', run: () => setMapTool('door') },
         { key: 'G', action: 'Tracer un Gouffre (Bloque pas, vue libre)', run: () => setMapTool('chasm') },
         { key: 'X', action: 'Démolition Mur / Porte / Gouffre', run: () => setMapTool('wall-delete') },
-        { key: 'Q', action: 'Craie Tactique (Dessin libre & Schémas)', run: () => setMapTool('chalk') },
-        { key: 'Shift + Q', action: 'Gomme à Craie permanente', run: () => setMapTool('chalk-eraser') },
-        { key: 'Alt + Clic / I', action: 'Signal d\'Attention lumineux (Ping)', run: () => setMapTool('ping') },
       ]
     },
     {
       category: 'Lumière, Ambiance & Brouillard',
       items: [
         { key: 'L', action: 'Déposer un Foyer lumineux / Brasero (12m)', run: () => setMapTool('light') },
-        { key: 'Shift + L', action: 'Retirer un Foyer lumineux', run: () => setMapTool('light-delete') },
         { key: 'N', action: 'Basculer Plein Jour / Nuit Obscure', run: () => document.getElementById('btn-toggle-day-night')?.click() },
         { key: 'F', action: 'Révéler le Brouillard (Gommer)', run: () => setMapTool('fog-rect') },
-        { key: 'H', action: 'Masquer le Brouillard (Peindre)', run: () => setMapTool('fog-circle') },
+        { key: 'H', action: 'Révéler le brouillard (cercle)', run: () => setMapTool('fog-circle') },
         { key: 'Shift + F', action: 'Réinitialiser tout le Brouillard', run: () => document.getElementById('btn-reset-fog')?.click() },
       ]
     },
     {
       category: 'Terrains Difficiles & Dangers',
       items: [
-        { key: '1', action: 'Zone Marais (Vitesse -50%)', run: () => setMapTool('marsh') },
-        { key: '2', action: 'Zone Eau Profonde (Vitesse -50%)', run: () => setMapTool('deep_water') },
-        { key: '3', action: 'Zone Gravats (Vitesse -50%)', run: () => setMapTool('rubble') },
-        { key: '4', action: 'Zone Toiles d\'araignée (Vitesse -50%)', run: () => setMapTool('web') },
-        { key: '5', action: 'Zone Flammes (4 dégâts + Brûlé)', run: () => setMapTool('fire') },
-        { key: '6', action: 'Zone Poison (3 dégâts + Empoisonné)', run: () => setMapTool('poison') },
-        { key: '7', action: 'Zone Acide (5 dégâts corrosifs)', run: () => setMapTool('acid') },
+        { key: '1', action: 'Zone Marais (Vitesse -50%)', run: () => setMapTool('zone-swamp') },
+        { key: '2', action: 'Zone Eau Profonde (Vitesse -50%)', run: () => setMapTool('zone-water') },
+        { key: '3', action: 'Zone Gravats (Vitesse -50%)', run: () => setMapTool('zone-rubble') },
+        { key: '4', action: 'Zone Toiles d\'araignée (Vitesse -50%)', run: () => setMapTool('zone-web') },
+        { key: '5', action: 'Zone Flammes (4 dégâts + Brûlé)', run: () => setMapTool('zone-fire') },
+        { key: '6', action: 'Zone Poison (3 dégâts + Empoisonné)', run: () => setMapTool('zone-poison') },
+        { key: '7', action: 'Zone Acide (5 dégâts corrosifs)', run: () => setMapTool('zone-acid') },
         { key: '8', action: 'Dissiper une Zone d\'effet', run: () => setMapTool('zone-delete') },
       ]
     },
@@ -11042,11 +10980,11 @@ const TACTICAL_SHORTCUTS = {
       category: 'Pièges & Découvertes Dissimulées',
       items: [
         { key: 'Shift + 1', action: 'Poser Fosse secrète (DD 12 | 5 dégâts + À terre)', run: () => setMapTool('trap-pit') },
-        { key: 'Shift + 2', action: 'Poser Mâchoires d\'acier (DD 13 | 6 dégâts + Entravé)', run: () => setMapTool('trap-bear') },
-        { key: 'Shift + 3', action: 'Poser Fléchettes (DD 14 | 4 dégâts + Empoisonné)', run: () => setMapTool('trap-darts') },
-        { key: 'Shift + 4', action: 'Poser Passage Secret (DD 13)', run: () => setMapTool('trap-secret') },
+        { key: 'Shift + 2', action: 'Poser Mâchoires d\'acier (DD 13 | 6 dégâts + Entravé)', run: () => setMapTool('trap-snare') },
+        { key: 'Shift + 3', action: 'Poser Fléchettes (DD 14 | 4 dégâts + Empoisonné)', run: () => setMapTool('trap-poison-dart') },
+        { key: 'Shift + 4', action: 'Poser Passage Secret (DD 13)', run: () => setMapTool('trap-secret-passage') },
         { key: 'Shift + 5', action: 'Démanteler un Piège', run: () => setMapTool('trap-delete') },
-        { key: 'K', action: 'Ouvrir Panneau d\'inspection des Pièges', run: () => document.getElementById('btn-open-traps-manager')?.click() },
+        { key: 'K', action: 'Ouvrir Panneau d\'inspection des Pièges', run: () => document.getElementById('btn-open-traps-modal')?.click() },
       ]
     },
     {
@@ -11058,8 +10996,8 @@ const TACTICAL_SHORTCUTS = {
         { key: 'B', action: 'Invoquer un Monstre / PNJ', run: () => document.getElementById('btn-open-monster-modal')?.click() },
         { key: 'Shift + B', action: 'Invoquer Pion Joueur sur le plateau', run: () => document.getElementById('btn-open-player-tokens-modal')?.click() },
         { key: 'A', action: 'Panneau Altérations d\'état & Conditions', run: () => document.getElementById('btn-open-conditions-modal')?.click() },
-        { key: 'Tab', action: 'Passer au Tour de combat suivant', run: () => document.getElementById('btn-next-turn')?.click() },
-        { key: 'Shift + R', action: 'Nouveau Round de combat', run: () => document.getElementById('btn-new-round')?.click() },
+        { key: 'R', action: 'Passer au tour de combat suivant', run: () => document.getElementById('btn-next-turn')?.click() },
+        { key: 'Shift + R', action: 'Relancer l’initiative', run: () => document.getElementById('btn-roll-initiative')?.click() },
       ]
     },
     {
@@ -11073,10 +11011,42 @@ const TACTICAL_SHORTCUTS = {
   ]
 };
 
+// Les codes physiques rendent les chiffres utilisables sur AZERTY et QWERTY.
+const SHORTCUT_STORAGE_KEY = 'tactical-shortcuts-v1';
+const shortcutItems = Object.entries(TACTICAL_SHORTCUTS).flatMap(([role, sections]) =>
+  sections.flatMap((section, sectionIndex) => section.items.map((item, index) => {
+    item.id = `${role}.${sectionIndex}.${index}`;
+    item.role = role;
+    const parts = item.key.split(' + ');
+    const key = parts[parts.length - 1];
+    item.defaultBinding = { code: /^[A-Z]$/.test(key) ? `Key${key}` : /^\d$/.test(key) ? `Digit${key}` : key === '+' ? 'Equal' : 'Minus', shift: parts.length > 1 };
+    return item;
+  }))
+);
+let shortcutBindings = {};
+let shortcutCapture = null;
+try {
+  const saved = JSON.parse(localStorage.getItem(SHORTCUT_STORAGE_KEY) || 'null');
+  if (saved?.version === 1 && saved.bindings && typeof saved.bindings === 'object') shortcutBindings = saved.bindings;
+} catch (_) { /* Stockage indisponible ou invalide : valeurs par défaut. */ }
+function shortcutBinding(item) {
+  const binding = shortcutBindings[item.id];
+  return binding && typeof binding.code === 'string' && typeof binding.shift === 'boolean' ? binding : item.defaultBinding;
+}
+function shortcutLabel(binding) {
+  const name = binding.code.replace(/^Key/, '').replace(/^Digit/, '').replace('Equal', '+').replace('Minus', '-').replace('Space', 'Espace');
+  return `${binding.shift ? 'Maj + ' : ''}${name}`;
+}
+function shortcutSave() {
+  try { localStorage.setItem(SHORTCUT_STORAGE_KEY, JSON.stringify({ version: 1, bindings: shortcutBindings })); }
+  catch (_) { showShortcutTriggerFeedback('Stockage local indisponible'); }
+}
+
 /**
  * Construit et actualise le contenu du volet ancré des raccourcis
  */
 function renderTacticalShortcutsPanel(tab = 'player') {
+  if (shortcutCapture) { shortcutCapture.abort(); shortcutCapture = null; }
   const container = document.getElementById('shortcuts-list-container');
   if (!container) return;
 
@@ -11095,6 +11065,12 @@ function renderTacticalShortcutsPanel(tab = 'player') {
 
   const sections = TACTICAL_SHORTCUTS[tab] || [];
   container.innerHTML = '';
+  const reset = document.createElement('button');
+  reset.type = 'button';
+  reset.className = 'text-xs text-amber-300 underline';
+  reset.textContent = 'Réinitialiser tous les raccourcis';
+  reset.addEventListener('click', () => { shortcutBindings = {}; shortcutSave(); renderTacticalShortcutsPanel(tab); });
+  container.appendChild(reset);
 
   sections.forEach((sec) => {
     const secEl = document.createElement('div');
@@ -11110,23 +11086,44 @@ function renderTacticalShortcutsPanel(tab = 'player') {
 
     sec.items.forEach((item) => {
       const row = document.createElement('div');
-      row.className = 'flex items-center justify-between p-1.5 bg-stone-900/60 border border-stone-800 hover:border-amber-700/80 hover:bg-stone-800/80 transition cursor-pointer group';
-      row.title = `Raccourci : ${item.key} (Cliquer pour activer)`;
-
-      row.innerHTML = `
-        <div class="flex flex-col min-w-0 pr-2">
-          <span class="font-cinzel font-bold text-stone-200 text-[10px] group-hover:text-amber-300 truncate">${item.action}</span>
-        </div>
-        <kbd class="px-1.5 py-0.5 bg-stone-950 border border-amber-800/80 text-amber-300 font-mono text-[9px] font-bold shadow whitespace-nowrap flex-shrink-0">${item.key}</kbd>
-      `;
-
-      if (typeof item.run === 'function') {
-        row.addEventListener('click', (e) => {
-          e.stopPropagation();
-          item.run();
-          showShortcutTriggerFeedback(item.action);
-        });
-      }
+      row.className = 'flex items-center justify-between gap-2 p-1.5 bg-stone-900/60 border border-stone-800';
+      const action = document.createElement('button');
+      action.type = 'button';
+      action.className = 'text-left font-cinzel text-stone-200 text-xs';
+      action.textContent = item.action;
+      action.disabled = item.role === 'mj' && CURRENT_ROLE !== 'mj';
+      action.addEventListener('click', () => { item.run(); });
+      const binding = document.createElement('button');
+      binding.type = 'button';
+      binding.className = 'px-2 py-1 bg-stone-950 border border-amber-800 text-amber-300 font-mono text-xs';
+      binding.textContent = shortcutLabel(shortcutBinding(item));
+      binding.setAttribute('aria-label', `Modifier le raccourci : ${item.action}`);
+      binding.addEventListener('click', () => {
+        if (shortcutCapture) shortcutCapture.abort();
+        shortcutCapture = new AbortController();
+        binding.textContent = 'Appuyez sur une touche (Échap annule)';
+        const capture = (e) => {
+          e.preventDefault(); e.stopImmediatePropagation();
+          if (e.key === 'Escape') { renderTacticalShortcutsPanel(tab); return; }
+          if (e.repeat || e.isComposing || e.ctrlKey || e.altKey || e.metaKey || !/^(Key[A-Z]|Digit[0-9]|Equal|Minus|Space|Numpad[0-9]|NumpadAdd|NumpadSubtract)$/.test(e.code)) {
+            binding.textContent = 'Touche invalide, réessayez';
+            window.addEventListener('keydown', capture, { capture: true, once: true, signal: shortcutCapture.signal });
+            return;
+          }
+          const next = { code: e.code, shift: e.shiftKey };
+          const conflict = shortcutItems.find((other) => other !== item && (other.role === item.role || other.role === 'player' || item.role === 'player') && shortcutBinding(other).code === next.code && shortcutBinding(other).shift === next.shift);
+          if (conflict) {
+            binding.textContent = `Conflit : ${conflict.action}`;
+            window.addEventListener('keydown', capture, { capture: true, once: true, signal: shortcutCapture.signal });
+            return;
+          }
+          shortcutBindings[item.id] = next;
+          shortcutSave();
+          renderTacticalShortcutsPanel(tab);
+        };
+        window.addEventListener('keydown', capture, { capture: true, once: true, signal: shortcutCapture.signal });
+      });
+      row.append(action, binding);
 
       list.appendChild(row);
     });
@@ -11160,6 +11157,7 @@ function initTacticalShortcutsUI() {
       renderTacticalShortcutsPanel(currentTab);
     } else {
       content.classList.add('hidden');
+      if (shortcutCapture) { shortcutCapture.abort(); shortcutCapture = null; }
       if (arrow) arrow.textContent = '◀';
     }
   };
@@ -11168,6 +11166,7 @@ function initTacticalShortcutsUI() {
   if (btnClose) {
     btnClose.addEventListener('click', () => {
       if (content) content.classList.add('hidden');
+      if (shortcutCapture) { shortcutCapture.abort(); shortcutCapture = null; }
       if (arrow) arrow.textContent = '◀';
     });
   }
@@ -11194,301 +11193,17 @@ function initTacticalShortcutsUI() {
 
   renderTacticalShortcutsPanel(currentTab);
 
-  // ----------------------------------------------------------
-  // GESTIONNAIRE GLOBAL DES ÉVÉNEMENTS CLAVIER (CARTE TACTIQUE)
-  // ----------------------------------------------------------
   window.addEventListener('keydown', (e) => {
-    // 1. Actif STRICTEMENT sur la page Carte Tactique
-    if (!isTacticalMapActive()) return;
-
-    // 2. Ignorer toute frappe si l'utilisateur saisit du texte dans un champ ou une zone éditable
-    if (isUserTyping()) return;
-
-    // 3. Ignorer toute frappe si une modale bloquante est ouverte à l'écran
-    if (isAnyModalOpen()) return;
-
-    // 4. Ignorer les touches associées à Ctrl, Alt ou Meta pour préserver les raccourcis système
-    if (e.ctrlKey || e.altKey || e.metaKey) return;
-
-    const key = e.key;
-    const isShift = e.shiftKey;
-
-    // --- A. Actions Joueur & Général ---
-    if (key === 'c' || key === 'C' || key === ' ') {
-      e.preventDefault();
-      const myTok = typeof getMyPlayerToken === 'function' ? getMyPlayerToken() : null;
-      if (myTok && typeof centerCameraOnToken === 'function') {
-        centerCameraOnToken(myTok);
-      } else {
-        centerMapCamera();
-      }
-      showShortcutTriggerFeedback('Centrer caméra');
-      return;
-    }
-
-    if (key === '0') {
-      e.preventDefault();
-      mapZoom = 1;
-      centerMapCamera();
-      requestMapRender();
-      showShortcutTriggerFeedback('Zoom 100%');
-      return;
-    }
-
-    if (key === '+' || key === '=') {
-      e.preventDefault();
-      mapZoom = Math.min(3, mapZoom * 1.2);
-      requestMapRender();
-      showShortcutTriggerFeedback('Zoom Avant');
-      return;
-    }
-
-    if (key === '-' || key === '_') {
-      e.preventDefault();
-      mapZoom = Math.max(0.2, mapZoom / 1.2);
-      requestMapRender();
-      showShortcutTriggerFeedback('Zoom Arrière');
-      return;
-    }
-
-    if ((key === 't' || key === 'T') && !isShift) {
-      e.preventDefault();
-      document.getElementById('btn-toggle-my-torch')?.click();
-      showShortcutTriggerFeedback('Basculer Torche');
-      return;
-    }
-
-    if ((key === 'e' || key === 'E') && !isShift) {
-      e.preventDefault();
-      toggleNearestDoor();
-      return;
-    }
-
-    if ((key === 'p' || key === 'P') && !isShift) {
-      e.preventDefault();
-      passOrAckTurn();
-      return;
-    }
-
-    if ((key === 'v' || key === 'V') && !isShift) {
-      e.preventDefault();
-      setMapTool('select');
-      showShortcutTriggerFeedback('Mode Déplacer pions');
-      return;
-    }
-
-    if ((key === 'o' || key === 'O') && !isShift) {
-      e.preventDefault();
-      setMapTool('pan');
-      showShortcutTriggerFeedback('Mode Caméra libre');
-      return;
-    }
-
-    if ((key === 'm' || key === 'M') && !isShift) {
-      e.preventDefault();
-      setMapTool('measure');
-      showShortcutTriggerFeedback('Outil Mesure');
-      return;
-    }
-
-    if ((key === 'q' || key === 'Q') && !isShift) {
-      e.preventDefault();
-      setMapTool('chalk');
-      showShortcutTriggerFeedback('Craie Tactique');
-      return;
-    }
-
-    if ((key === 'q' || key === 'Q') && isShift) {
-      e.preventDefault();
-      setMapTool('chalk-eraser');
-      showShortcutTriggerFeedback('Gomme à Craie');
-      return;
-    }
-
-    if ((key === 'i' || key === 'I') && !isShift) {
-      e.preventDefault();
-      setMapTool('ping');
-      showShortcutTriggerFeedback('Signal Ping');
-      return;
-    }
-
-    // --- B. Actions Maître du Jeu uniquement ---
-    if (CURRENT_ROLE !== 'mj') return;
-
-    if ((key === 'w' || key === 'W') && !isShift) {
-      e.preventDefault();
-      setMapTool('wall');
-      showShortcutTriggerFeedback('Outil Mur');
-      return;
-    }
-
-    if ((key === 'd' || key === 'D') && !isShift) {
-      e.preventDefault();
-      setMapTool('door');
-      showShortcutTriggerFeedback('Outil Porte');
-      return;
-    }
-
-    if ((key === 'g' || key === 'G') && !isShift) {
-      e.preventDefault();
-      setMapTool('chasm');
-      showShortcutTriggerFeedback('Outil Gouffre');
-      return;
-    }
-
-    if ((key === 'x' || key === 'X') && !isShift) {
-      e.preventDefault();
-      setMapTool('wall-delete');
-      showShortcutTriggerFeedback('Démolition Mur/Porte/Gouffre');
-      return;
-    }
-
-    if ((key === 'l' || key === 'L') && !isShift) {
-      e.preventDefault();
-      setMapTool('light');
-      showShortcutTriggerFeedback('Outil Brasero');
-      return;
-    }
-
-    if ((key === 'l' || key === 'L') && isShift) {
-      e.preventDefault();
-      setMapTool('light-delete');
-      showShortcutTriggerFeedback('Retirer Brasero');
-      return;
-    }
-
-    if ((key === 'n' || key === 'N') && !isShift) {
-      e.preventDefault();
-      document.getElementById('btn-toggle-day-night')?.click();
-      showShortcutTriggerFeedback('Basculer Jour / Nuit');
-      return;
-    }
-
-    if ((key === 'f' || key === 'F') && !isShift) {
-      e.preventDefault();
-      setMapTool('fog-rect');
-      showShortcutTriggerFeedback('Révéler Brouillard');
-      return;
-    }
-
-    if ((key === 'h' || key === 'H') && !isShift) {
-      e.preventDefault();
-      setMapTool('fog-circle');
-      showShortcutTriggerFeedback('Masquer Brouillard');
-      return;
-    }
-
-    if ((key === 'f' || key === 'F') && isShift) {
-      e.preventDefault();
-      document.getElementById('btn-reset-fog')?.click();
-      showShortcutTriggerFeedback('Reset Brouillard');
-      return;
-    }
-
-    // Terrains & Dangers (touches 1 à 8 sans Shift)
-    if (!isShift) {
-      if (key === '1') { e.preventDefault(); setMapTool('marsh'); showShortcutTriggerFeedback('Zone Marais'); return; }
-      if (key === '2') { e.preventDefault(); setMapTool('deep_water'); showShortcutTriggerFeedback('Zone Eau Profonde'); return; }
-      if (key === '3') { e.preventDefault(); setMapTool('rubble'); showShortcutTriggerFeedback('Zone Gravats'); return; }
-      if (key === '4') { e.preventDefault(); setMapTool('web'); showShortcutTriggerFeedback('Zone Toiles'); return; }
-      if (key === '5') { e.preventDefault(); setMapTool('fire'); showShortcutTriggerFeedback('Zone Flammes'); return; }
-      if (key === '6') { e.preventDefault(); setMapTool('poison'); showShortcutTriggerFeedback('Zone Poison'); return; }
-      if (key === '7') { e.preventDefault(); setMapTool('acid'); showShortcutTriggerFeedback('Zone Acide'); return; }
-      if (key === '8') { e.preventDefault(); setMapTool('zone-delete'); showShortcutTriggerFeedback('Dissiper Zone'); return; }
-    }
-
-    // Pièges & Mécanismes (Shift + 1 à 5, compatible claviers AZERTY & QWERTY)
-    if (isShift) {
-      if (key === '1' || key === '&') { e.preventDefault(); setMapTool('trap-pit'); showShortcutTriggerFeedback('Poser Fosse'); return; }
-      if (key === '2' || key === 'é') { e.preventDefault(); setMapTool('trap-bear'); showShortcutTriggerFeedback('Poser Mâchoires'); return; }
-      if (key === '3' || key === '"') { e.preventDefault(); setMapTool('trap-darts'); showShortcutTriggerFeedback('Poser Fléchettes'); return; }
-      if (key === '4' || key === "'") { e.preventDefault(); setMapTool('trap-secret'); showShortcutTriggerFeedback('Poser Passage Secret'); return; }
-      if (key === '5' || key === '(') { e.preventDefault(); setMapTool('trap-delete'); showShortcutTriggerFeedback('Démanteler Piège'); return; }
-    }
-
-    if ((key === 'k' || key === 'K') && !isShift) {
-      e.preventDefault();
-      document.getElementById('btn-open-traps-manager')?.click();
-      showShortcutTriggerFeedback('Panneau des Pièges');
-      return;
-    }
-
-    if ((key === 's' || key === 'S') && !isShift) {
-      e.preventDefault();
-      document.getElementById('btn-open-scene-manager')?.click();
-      showShortcutTriggerFeedback('Gestionnaire de Scènes');
-      return;
-    }
-
-    if ((key === 't' || key === 'T') && isShift) {
-      e.preventDefault();
-      setMapTool('teleport');
-      showShortcutTriggerFeedback('Poser Téléporteur');
-      return;
-    }
-
-    if ((key === 'x' || key === 'X') && isShift) {
-      e.preventDefault();
-      setMapTool('teleport-delete');
-      showShortcutTriggerFeedback('Démanteler Téléporteur');
-      return;
-    }
-
-    if ((key === 'b' || key === 'B') && !isShift) {
-      e.preventDefault();
-      document.getElementById('btn-open-monster-modal')?.click();
-      showShortcutTriggerFeedback('Invoquer Monstre');
-      return;
-    }
-
-    if ((key === 'b' || key === 'B') && isShift) {
-      e.preventDefault();
-      document.getElementById('btn-open-player-tokens-modal')?.click();
-      showShortcutTriggerFeedback('Invoquer Pion Joueur');
-      return;
-    }
-
-    if ((key === 'a' || key === 'A') && !isShift) {
-      e.preventDefault();
-      document.getElementById('btn-open-conditions-modal')?.click();
-      showShortcutTriggerFeedback('Panneau Conditions');
-      return;
-    }
-
-    if ((key === 'o' || key === 'O') && isShift) {
-      e.preventDefault();
-      setMapTool('prop');
-      showShortcutTriggerFeedback('Poser Objet / PNJ');
-      return;
-    }
-
-    if ((key === 'p' || key === 'P') && isShift) {
-      e.preventDefault();
-      document.getElementById('btn-open-prop-modal')?.click();
-      showShortcutTriggerFeedback('Catalogue des Objets');
-      return;
-    }
-
-    if ((key === 'd' || key === 'D') && isShift) {
-      e.preventDefault();
-      setMapTool('prop-delete');
-      showShortcutTriggerFeedback('Supprimer Objet');
-      return;
-    }
-
-    if (key === 'Tab') {
-      e.preventDefault();
-      document.getElementById('btn-next-turn')?.click();
-      showShortcutTriggerFeedback('Tour Suivant');
-      return;
-    }
-
-    if ((key === 'r' || key === 'R') && isShift) {
-      e.preventDefault();
-      document.getElementById('btn-new-round')?.click();
-      showShortcutTriggerFeedback('Nouveau Round');
-      return;
-    }
+    if (!isTacticalMapActive() || isUserTyping() || isAnyModalOpen() || e.isComposing || e.keyCode === 229 || e.repeat || e.ctrlKey || e.altKey || e.metaKey || e.defaultPrevented) return;
+    // Ne pas intercepter la navigation ou l'activation d'un contrôle focalisé.
+    if (document.activeElement?.closest('button, a, [role="button"]')) return;
+    const item = shortcutItems.find((entry) => {
+      const binding = shortcutBinding(entry);
+      return (entry.role === 'player' || CURRENT_ROLE === 'mj') && binding.code === e.code && binding.shift === e.shiftKey;
+    });
+    if (!item) return;
+    e.preventDefault();
+    item.run();
   });
 }
 
@@ -12304,7 +12019,7 @@ function initInvestigationUI() {
         try {
           const formData = new FormData();
           formData.append('file', invNewClueSelectedImageFile);
-          const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData });
+          const uploadRes = await fetch(`/api/upload?roomId=${encodeURIComponent(CURRENT_ROOM || '')}`, { method: 'POST', body: formData });
           const uploadData = await uploadRes.json();
 
           if (uploadData?.success && uploadData.url) {
@@ -12558,3 +12273,32 @@ function initInvestigationUI() {
 
 
 
+
+
+// Authoritative full replacement (restoration and visibility changes).
+function replaceCampaignState(state, { resetView = false } = {}) {
+  CURRENT_EPOCH = state.epoch || CURRENT_EPOCH;
+  if (Object.hasOwn(state, 'ownCharacterId')) {
+    myCharacterId = state.ownCharacterId;
+    myAssignedSlot = state.ownSlot;
+  }
+  if (state.characters) updateCharactersGrid(state.characters);
+  if (state.map) {
+    const changedScene = tacticalMapState.activeSceneId !== state.map.activeSceneId;
+    tacticalMapState = { ...state.map };
+    if (resetView || changedScene) {
+      preloadedScenesCache.clear();
+      bgImage = null;
+      cameraInitialized = false;
+    }
+    updateTacticalMapState(state.map);
+  }
+  if (state.investigation) {
+    investigationState = state.investigation;
+    refreshInvestigationBoardUI();
+  }
+}
+socket.on('room:restored', state => replaceCampaignState(state, { resetView: true }));
+socket.on('campaign:authoritative', replaceCampaignState);
+socket.on('map:authoritative', state => replaceCampaignState({ map: state.map }));
+socket.on('room:save_error', data => alert(data.error));

@@ -1,5 +1,9 @@
 # Foundry Lite - Table Ronde Virtuelle Old-School / Virtual Tabletop
 
+> FR : avant déploiement ou migration, consultez le [guide d'exploitation et de sécurité](docs/OPERATIONS.md). Les indications historiques ci-dessous peuvent ne pas refléter les changements en cours.
+>
+> EN: before deployment or migration, read the [operations and security guide](docs/OPERATIONS.md#english). Historical descriptions below may not reflect ongoing changes.
+
 [![Node.js](https://img.shields.io/badge/Node.js-v18%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Express.js](https://img.shields.io/badge/Express-v5.3-000000?logo=express&logoColor=white)](https://expressjs.com/)
 [![Socket.io](https://img.shields.io/badge/Socket.io-v4.8-010101?logo=socket.io&logoColor=white)](https://socket.io/)
@@ -75,10 +79,11 @@ L'application assure une synchronisation multijoueur en temps réel via WebSocke
 #### 4. Carte Tactique & Moteur Canvas Avancé
 * **Déplacement fluide sans grille bloquante :** Glisser-déposer naturel des pions avec échelle métrique continue (1 case = 1.5 m = 50 px).
 * **Contrôle d'autorité et tours de combat :** Les joueurs déplacent uniquement leur héros et pendant leur tour actif ; le MJ conserve le contrôle absolu sur tous les pions.
-* **Moteur Ghost Pathing & Course (Dash) :**
+* **Moteur Ghost Pathing & Périmètre de mouvement délimité :**
   * Ligne de visée directe avec encoches métriques tous les 1.5 m.
-  * Zone de mouvement standard (cercle bleu) et zone de Course / Dash (cercle jaune).
-  * Si un aventurier dépasse sa vitesse standard vers le cercle jaune, son tour d'action est automatiquement consommé.
+  * Périmètre de mouvement calculé dynamiquement (vitesse de base, traits raciaux, terrains difficiles, état au sol).
+  * Restriction physique du curseur au rayon de mouvement alloué : le joueur ne peut pas dépasser sa portée autorisée.
+  * Aucune fin de tour forcée ou automatique : le joueur reste maître de son tour d'action jusqu'à confirmation manuelle (`P` ou bouton "Finir mon tour").
   * Détection continue des collisions physiques contre les murs et gouffres.
 * **Navigation caméra :** Panoramique à la souris (clic molette ou clic droit) et zoom fluide centré sur le curseur.
 
@@ -298,7 +303,7 @@ The application delivers real-time multiplayer synchronization via WebSockets wi
 * **Authentic cRPG Aesthetic:** Atmospheric UI reflecting an iron-clad grimoire with dark slate, aged vellum, forged metal trims, and glass liquid vials.
 * **Hero Forge & Party Ledger:** 10 ancestries, 6 classes, Point Buy / 3d6 certified stat generation, origin titles, custom color signatures, and real-time vital tracking.
 * **Tavern Chat & Polyhedral Dice:** Real-time roleplay ledger, polyhedral runic dice (d4 to d100), cinematic critical animations, and text syntax support (`/roll 2d6+3`).
-* **Tactical Battlemap Canvas:** Freeform token motion (1 grid = 1.5 m = 50 px), direct trajectory ghost pathing, dash limits, and cursor-centered zoom.
+* **Tactical Battlemap Canvas:** Freeform token motion (1 grid = 1.5 m = 50 px), direct trajectory ghost pathing, bounded movement radius, manual turn confirmation, and cursor-centered zoom.
 * **Dynamic Lighting & Fog of War:** Day/Night cycle, hero torches (12 m), static braziers, raycasted obstacle shadows, and persistent fog exploration.
 * **Walls, Chasms & Doors:** Stone walls (blocking line of sight and movement), chasms (blocking movement, open sight), and interactable doors with key locking.
 * **Difficult Terrains & Hazards:** Mud, deep water, webs (-50% speed), fire, poison, and corrosive acid surfaces with one-click clearing.

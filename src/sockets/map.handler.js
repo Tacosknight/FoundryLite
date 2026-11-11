@@ -1,5 +1,7 @@
-const roomManager = require('../state/RoomManager');
-const roomService = require('../services/roomService');
+const tactical = require('../rules/tactical');
+const { projectMap } = require('../security/projections');
+const movements = new WeakMap();
+const operations = new WeakMap();
 
 /**
  * Vérifie si le socket appelant est le Maître du Jeu (MJ/GM)
@@ -9,11 +11,13 @@ const roomService = require('../services/roomService');
  * @returns {boolean}
  */
 function isUserMJ(socket, roomId, roleHint) {
-  if (roleHint === 'mj' || roleHint === 'gm') return true;
-  if (socket.data?.user?.role === 'mj' || socket.data?.user?.role === 'gm') return true;
-  const room = roomService.getRoom(roomId);
-  const user = room?.users?.find((u) => u.socketId === socket.id);
-  return user?.role === 'mj' || user?.role === 'gm';
+  if (!roomId || socket.data?.roomId !== roomId) return false;
+  const service = socket.data?.services?.roomService;
+  const identity = socket.data?.identityId;
+  const role = identity && typeof service?.membership === 'function'
+    ? service.membership(roomId, identity)?.role
+    : socket.data?.user?.role;
+  return role === 'mj' || role === 'gm';
 }
 
 /**
@@ -22,9 +26,10 @@ function isUserMJ(socket, roomId, roleHint) {
  * @param {string} roomId 
  */
 function getPlayerCharacter(socket, roomId) {
-  const room = roomManager.getRoom(roomId);
+  const room = socket.data.services.roomManager.getRoom(roomId);
   if (!room || !Array.isArray(room.characters)) return null;
-  return room.characters.find((c) => c.socketId === socket.id) || null;
+  const identity = socket.data?.identityId;
+  return room.characters.find((c) => identity ? c.ownerId === identity : c.socketId === socket.id) || null;
 }
 
 /**
@@ -32,7 +37,12 @@ function getPlayerCharacter(socket, roomId) {
  * @param {import('socket.io').Server} io 
  * @param {import('socket.io').Socket} socket 
  */
-function registerMapHandlers(io, socket) {
+function registerMapHandlers(io, socket, { roomManager, roomService } = {}) {
+  socket.data ||= {};
+  roomManager ||= socket.data.services?.roomManager;
+  roomService ||= socket.data.services?.roomService;
+  if (!roomManager || !roomService) throw new Error('Map services are required');
+  socket.data.services = { ...socket.data.services, roomManager, roomService };
   /**
    * Récupération de l'état de la carte (map:get_state)
    */
@@ -41,7 +51,8 @@ function registerMapHandlers(io, socket) {
       const roomId = data?.roomId || socket.data?.roomId || 'table-ronde';
       const mapState = roomManager.getMapState(roomId);
       if (typeof callback === 'function') {
-        callback({ success: true, map: mapState });
+        const room = roomManager.getRoom(roomId);
+        callback({ success: true, map: projectMap({ ...room, map: mapState }, { role: isUserMJ(socket, roomId) ? 'mj' : 'player', identityId: socket.data.identityId }) });
       }
     } catch (err) {
       console.error('[MapHandler Error] map:get_state :', err.message);
@@ -115,7 +126,7 @@ function registerMapHandlers(io, socket) {
         if (!myChar) {
           throw new Error('Vous devez avoir un personnage actif pour déplacer un pion.');
         }
-        const isOwner = token.type === 'player' && (token.slot === myChar.slot || (token.name && token.name.toLowerCase() === myChar.name.toLowerCase()));
+        const isOwner = token.type === 'player' && token.slot === myChar.slot && myChar.slot != null;
         if (!isOwner) {
           throw new Error('Action refusée : vous ne pouvez déplacer que votre propre pion.');
         }
@@ -127,19 +138,44 @@ function registerMapHandlers(io, socket) {
         }
       }
 
-      const updatedToken = roomManager.moveToken(roomId, tokenId, x, y);
-
-      // Diffusion aux autres clients (SAUF l'émetteur) pour une réactivité instantanée
-      socket.to(roomId).emit('map:token_moved', {
-        roomId,
-        tokenId,
-        x: updatedToken.x,
-        y: updatedToken.y
-      });
-
-      if (typeof callback === 'function') {
-        callback({ success: true, token: updatedToken });
+      let byRoom = movements.get(roomManager);
+      if (!byRoom) movements.set(roomManager, byRoom = new Map());
+      let cache = operations.get(roomManager);
+      if (!cache) operations.set(roomManager, cache = new Map());
+      const opKey = data?.operationId && `${roomId}:${room.epoch}:${socket.data.identityId || socket.id}:${data.operationId}`;
+      if (opKey && !data?.preview && cache.has(opKey)) {
+        const entry = cache.get(opKey);
+        if (entry.tokenId !== tokenId || entry.x !== x || entry.y !== y) throw new Error('Identifiant d’opération déjà utilisé.');
+        if (typeof callback === 'function') callback(entry.response);
+        return;
       }
+      const turn = mapState.currentTurn;
+      const turnKey = turn ? `${room.epoch}:${room.activeSceneId}:${turn.slot}:${turn.round}:${turn.timestamp}` : null;
+      const movementKey = `${roomId}:${tokenId}`;
+      const previous = byRoom.get(movementKey);
+      const spent = turnKey && previous?.turnKey === turnKey ? previous.spent : 0;
+      const character = getPlayerCharacter(socket, roomId);
+      const move = tactical.validateMove({ map: mapState, token, character, x, y, spent: isMJ ? 0 : spent, previouslySlowed: !isMJ && previous?.turnKey === turnKey && previous?.slowed });
+      if (data?.preview) { if (typeof callback === 'function') callback({ success: true, preview: true, x: move.x, y: move.y, length: move.length }); return; }
+      const updatedToken = roomManager.moveToken(roomId, tokenId, move.x, move.y);
+      if (!isMJ && turnKey) byRoom.set(movementKey, { turnKey, spent: spent + move.length, slowed: move.slowed });
+      if (move.trap && !isMJ) {
+        const result = roomManager.triggerTrap(roomId, move.trap.id, tokenId);
+        io.to(roomId).emit('map:trap_triggered', { roomId, trapId: move.trap.id, ...result });
+      }
+      for (const zone of mapState.zones || []) if (!isMJ && zone.type === 'hazard' && tactical.pointInZone(updatedToken, zone)) {
+        const result = roomManager.applyHazardZone(roomId, zone.id, tokenId);
+        io.to(roomId).emit('map:hazard_triggered', { roomId, zoneId: zone.id, tokenId, ...result });
+      }
+      const passive = tactical.passivePerception(character, updatedToken);
+      for (const trap of mapState.traps || []) if (!trap.revealed && !trap.triggered && !trap.disarmed && passive >= (trap.dc || 12) && tactical.distance(updatedToken, trap) <= Math.min(200, tactical.visionRadius(updatedToken, character, mapState)) && tactical.lineOfSight(updatedToken, trap, mapState.walls || [])) {
+        const result = roomManager.revealTrap(roomId, trap.id, character?.name, passive, trap.dc);
+        io.to(roomId).emit('map:trap_revealed', { roomId, trapId: trap.id, ...result });
+      }
+      socket.to(roomId).emit('map:token_moved', { roomId, tokenId, x: updatedToken.x, y: updatedToken.y });
+      const response = { success: true, token: { ...updatedToken } };
+      if (opKey) { cache.set(opKey, { tokenId, x, y, response }); if (cache.size > 5000) cache.delete(cache.keys().next().value); }
+      if (typeof callback === 'function') callback(response);
     } catch (err) {
       console.error('[MapHandler Error] map:move_token :', err.message);
       if (typeof callback === 'function') {
@@ -262,18 +298,14 @@ function registerMapHandlers(io, socket) {
   socket.on('map:explore_fog', (data, callback) => {
     try {
       const roomId = data?.roomId || socket.data?.roomId || 'table-ronde';
-      const { area } = data || {};
-
-      if (!area || typeof area !== 'object') {
-        throw new Error('Zone géométrique invalide.');
-      }
-
+      const character = getPlayerCharacter(socket, roomId);
+      const map = roomManager.getMapState(roomId);
+      const token = character && map.tokens.find(t => t.type === 'player' && t.slot === character.slot);
+      if (!token) throw new Error('Pion joueur requis.');
+      const area = tactical.explorationPolygon(token, character, map);
+      if (!area) { callback?.({ success: true }); return; }
       const revealedArea = roomManager.revealFog(roomId, area);
-
-      io.to(roomId).emit('map:fog_revealed', {
-        roomId,
-        area: revealedArea
-      });
+      io.to(roomId).emit('map:fog_revealed', { roomId, area: revealedArea });
 
       if (typeof callback === 'function') {
         callback({ success: true, area: revealedArea });
@@ -833,6 +865,12 @@ function registerMapHandlers(io, socket) {
       const { doorId, role } = data || {};
       const myChar = getPlayerCharacter(socket, roomId);
       const isMJ = isUserMJ(socket, roomId, role);
+      if (!isMJ) {
+        const map = roomManager.getMapState(roomId);
+        const token = (map.tokens || []).find(t => t.type === 'player' && myChar?.slot != null && t.slot === myChar.slot);
+        const door = (map.walls || []).find(w => w.id === doorId);
+        if (!token || !door || tactical.distanceToSegment(token, {x:door.x1,y:door.y1}, {x:door.x2,y:door.y2}) > 75) throw new Error('Porte inaccessible.');
+      }
 
       const result = roomManager.toggleDoor(
         roomId,
@@ -1063,6 +1101,11 @@ function registerMapHandlers(io, socket) {
       const roomId = data?.roomId || socket.data?.roomId || 'table-ronde';
       const { tokenId, role } = data || {};
       const isMJ = isUserMJ(socket, roomId, role);
+      if (!isMJ) {
+        const character = getPlayerCharacter(socket, roomId);
+        const token = roomManager.getMapState(roomId).tokens.find(t => t.id === tokenId);
+        if (!character || character.slot == null || token?.type !== 'player' || token.slot !== character.slot) throw new Error('Pion non autorisé.');
+      }
 
       const result = roomManager.toggleTokenTorch(roomId, tokenId);
 
@@ -1461,6 +1504,7 @@ function registerMapHandlers(io, socket) {
    */
   socket.on('map:trigger_trap', (data, callback) => {
     try {
+      if (!isUserMJ(socket, data?.roomId || socket.data?.roomId)) throw new Error('Action réservée au serveur ou au MJ.');
       const roomId = data?.roomId || socket.data?.roomId || 'table-ronde';
       const { trapId, tokenId } = data || {};
 
@@ -1528,6 +1572,7 @@ function registerMapHandlers(io, socket) {
    */
   socket.on('map:reveal_trap', (data, callback) => {
     try {
+      if (!isUserMJ(socket, data?.roomId || socket.data?.roomId)) throw new Error('Action réservée au serveur ou au MJ.');
       const roomId = data?.roomId || socket.data?.roomId || 'table-ronde';
       const { trapId, characterName, score, dc } = data || {};
 
@@ -1606,6 +1651,7 @@ function registerMapHandlers(io, socket) {
    */
   socket.on('map:hazard_damage', (data, callback) => {
     try {
+      if (!isUserMJ(socket, data?.roomId || socket.data?.roomId)) throw new Error('Action réservée au serveur ou au MJ.');
       const roomId = data?.roomId || socket.data?.roomId || 'table-ronde';
       const { zoneId, tokenId } = data || {};
 
@@ -1940,6 +1986,13 @@ function registerMapHandlers(io, socket) {
     try {
       const roomId = data?.roomId || socket.data?.roomId || 'table-ronde';
       const { teleporterId, tokenId } = data || {};
+      if (!isUserMJ(socket, roomId)) {
+        const character = getPlayerCharacter(socket, roomId);
+        const map = roomManager.getMapState(roomId);
+        const token = (map.tokens || []).find(t => t.id === tokenId);
+        const portal = (map.teleporters || []).find(t => t.id === teleporterId);
+        if (!character || character.slot == null || token?.type !== 'player' || token.slot !== character.slot || !portal || tactical.distance(token, portal) > (portal.r || 25) + (token.size || 40) / 2) throw new Error('Téléporteur inaccessible.');
+      }
 
       const res = roomManager.triggerTeleporter(roomId, teleporterId, tokenId);
 
@@ -2493,7 +2546,7 @@ function registerMapHandlers(io, socket) {
       door.isLocked = false; // Le mécanisme déverrouille aussi la porte
       roomManager.triggerAutoSave();
 
-      io.to(roomId).emit('map:door_toggled', { doorId: door.id, door });
+      io.to(roomId).emit('map:door_updated', { doorId: door.id, door });
       if (typeof callback === 'function') callback({ success: true, door, isOpen: door.isOpen });
     } catch (err) {
       console.error('[MapHandler Error] prop:trigger_door :', err.message);

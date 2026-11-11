@@ -1,6 +1,11 @@
 node_modules/
 public/uploads/*
 !public/uploads/.gitkeep
-data/rooms.json
+data/*.json
+data/backups/
+data/assets/
+**/backups/
+test-results/
+playwright-report/
 !data/.gitkeep
 .env

@@ -24,10 +24,12 @@ function parseAndRoll(rawFormula) {
     throw new Error(`Format de dé incorrect : "${rawFormula}". Exemples valides : 1d20, 2d6+3, d100, 3d8-1`);
   }
 
+  if (formula.length > 80) throw new Error('Formule trop longue.');
   const count = match[1] === '' ? 1 : parseInt(match[1], 10);
   const sides = parseInt(match[2], 10);
   const sign = match[3] || '+';
   const rawMod = match[4] ? parseInt(match[4], 10) : 0;
+  if (!Number.isSafeInteger(rawMod) || rawMod > 1000000) throw new Error('Modificateur trop grand.');
   const modifier = sign === '-' ? -rawMod : rawMod;
 
   // Gardes-fous pour éviter les abus ou blocages
@@ -75,8 +77,7 @@ function parseAndRoll(rawFormula) {
  * @param {import('socket.io').Server} io
  * @param {import('socket.io').Socket} socket
  */
-function registerChatHandlers(io, socket) {
-  const roomManager = require('../state/RoomManager');
+function registerChatHandlers(io, socket, { roomManager, tools }) {
 
   /**
    * Envoi d'un message textuel classique
@@ -92,7 +93,7 @@ function registerChatHandlers(io, socket) {
 
       const cleanText = text.trim();
       const userRole = socket.data?.user?.role;
-      const isMJ = userRole === 'mj' || data?.isMJ;
+      const isMJ = userRole === 'mj';
 
       // Détermination du nom d'expéditeur et de sa couleur
       const roomObj = roomManager.getRoom(roomId);
@@ -122,7 +123,7 @@ function registerChatHandlers(io, socket) {
       };
 
       // Diffusion du message à tous les clients connectés
-      io.emit('chat:broadcast', messagePayload);
+      io.to(roomId).emit('chat:broadcast', messagePayload);
 
       if (typeof callback === 'function') {
         callback({ success: true, message: messagePayload });
@@ -143,7 +144,7 @@ function registerChatHandlers(io, socket) {
     try {
       // Seul le Maître du Jeu (MJ) est autorisé à lancer les dés
       const userRole = socket.data?.user?.role;
-      const isMJ = Boolean(userRole === 'mj' || data?.isMJ);
+      const isMJ = Boolean(userRole === 'mj');
       if (!isMJ || (userRole && userRole !== 'mj')) {
         throw new Error('Action non autorisée : seul le Maître du Jeu a le pouvoir de lancer les dés.');
       }
@@ -182,7 +183,7 @@ function registerChatHandlers(io, socket) {
       console.log(`[Dice Roll] [${isMJ ? 'MJ' : 'Joueur'}] ${cleanSender} a lancé ${formula}${targetStr} -> Total: ${rollResult.total} (Dés: [${rollResult.rolls.join(', ')}]) Outcome: ${outcome}`);
 
       // Diffusion du résultat à tous les clients
-      io.emit('dice:result', dicePayload);
+      io.to(roomId).emit('dice:result', dicePayload);
 
       if (typeof callback === 'function') {
         callback({ success: true, result: dicePayload });

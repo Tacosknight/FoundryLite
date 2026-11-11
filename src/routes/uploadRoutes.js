@@ -1,45 +1,44 @@
+'use strict';
+
 const express = require('express');
-const upload = require('../config/multer');
+const { createUpload } = require('../config/multer');
 
-const router = express.Router();
-
-/**
- * Route POST /api/upload
- * Permet l'upload d'un fichier image (maps, avatars, tokens)
- */
-router.post('/upload', (req, res, next) => {
-  upload.single('file')(req, res, (err) => {
-    if (err) {
-      // Gestion des erreurs spécifiques à Multer (taille, filtre)
-      return res.status(400).json({
-        success: false,
-        error: err.message
-      });
-    }
-
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        error: 'Aucun fichier transmis dans le champ "file".'
-      });
-    }
-
-    // URL accessible publiquement via le dossier statique /uploads
-    const fileUrl = `/uploads/${req.file.filename}`;
-
-    return res.status(201).json({
-      success: true,
-      message: 'Fichier uploadé avec succès.',
-      url: fileUrl,
-      data: {
-        filename: req.file.filename,
-        originalName: req.file.originalname,
-        size: req.file.size,
-        mimeType: req.file.mimetype,
-        url: fileUrl
-      }
+function createUploadRouter({ roomManager, roomService, sessions, assetService }) {
+  if (!roomManager || !roomService || !sessions || !assetService) throw new Error('Services requis');
+  const router = express.Router();
+  const upload = createUpload(assetService.maxBytes).single('file');
+  const headers = (_req, res, next) => {
+    res.set('Cache-Control', 'private, no-store');
+    res.set('X-Content-Type-Options', 'nosniff');
+    next();
+  };
+  function authenticate(req, res, next) {
+    const identityId = sessions.fromRequest(req);
+    if (!identityId) return res.status(401).json({ success: false, error: 'Authentification requise' });
+    const roomId = req.query.roomId;
+    if (typeof roomId !== 'string' || !roomId || !roomManager.rooms.has(roomId) || !roomService.membership(roomId, identityId)) return res.status(403).json({ success: false, error: 'Accès refusé' });
+    req.assetIdentityId = identityId;
+    req.assetRoomId = roomId;
+    next();
+  }
+  function respondError(res, error) {
+    const status = error.status || (error.code === 'LIMIT_FILE_SIZE' ? 413 : error.code?.startsWith('LIMIT_') ? 400 : 500);
+    res.status(status).json({ success: false, error: status === 500 ? 'Erreur serveur' : error.message });
+  }
+  router.post('/upload', headers, authenticate, (req, res) => {
+    upload(req, res, async error => {
+      if (error) return respondError(res, error);
+      if (!req.file) return res.status(400).json({ success: false, error: 'Fichier manquant' });
+      try { res.status(201).json({ success: true, ...await assetService.upload(req.assetRoomId, req.assetIdentityId, req.file) }); }
+      catch (err) { respondError(res, err); }
     });
   });
-});
-
-module.exports = router;
+  router.get('/assets/:id', headers, authenticate, async (req, res) => {
+    try {
+      const data = await assetService.get(req.assetRoomId, req.assetIdentityId, req.params.id);
+      res.type('image/webp').send(data);
+    } catch (err) { respondError(res, err); }
+  });
+  return router;
+}
+module.exports = { createUploadRouter };

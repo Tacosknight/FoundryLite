@@ -1,11 +1,10 @@
-const roomManager = require('../state/RoomManager');
 
 /**
  * Enregistre les écouteurs d'événements Socket.io pour la gestion de l'inventaire en temps réel
  * @param {import('socket.io').Server} io - Instance Socket.io
  * @param {import('socket.io').Socket} socket - Socket du client connecté
  */
-function registerInvHandlers(io, socket) {
+function registerInvHandlers(io, socket, { roomManager }) {
   /**
    * Ajout d'un nouvel objet dans l'inventaire d'un personnage
    * data: { roomId: string, slot: number, item: { name, desc, qty, imgUrl } }

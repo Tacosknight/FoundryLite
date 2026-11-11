@@ -1,5 +1,3 @@
-const roomManager = require('../state/RoomManager');
-const roomService = require('../services/roomService');
 
 /**
  * Paquetages de départ stricts par Classe :
@@ -43,7 +41,7 @@ const CLASS_STARTING_PACKAGES = {
  * @param {import('socket.io').Server} io - Instance du serveur Socket.io
  * @param {import('socket.io').Socket} socket - Socket du client connecté
  */
-function registerCharHandlers(io, socket) {
+function registerCharHandlers(io, socket, { roomManager, roomService, tools }) {
   /**
    * Création et personnalisation d'un personnage joueur (char:create)
    * data: { roomId: string, name: string, raceId: string, classId: string, title?: string, attributes?: object }
@@ -63,16 +61,10 @@ function registerCharHandlers(io, socket) {
         throw new Error('Veuillez sélectionner une classe.');
       }
 
-      // Vérification des attributs : l'ensemble des 20 points doivent être dépensés
-      if (attributes && typeof attributes === 'object') {
-        const f = Math.max(8, Math.min(18, Number(attributes.force) || 8));
-        const d = Math.max(8, Math.min(18, Number(attributes.dexterite) || 8));
-        const i = Math.max(8, Math.min(18, Number(attributes.intelligence) || 8));
-        const c = Math.max(8, Math.min(18, Number(attributes.charisme) || 8));
-        const totalSpent = (f - 8) + (d - 8) + (i - 8) + (c - 8);
-        if (totalSpent < 20) {
-          throw new Error(`Tous les 20 points d'attributs doivent être dépensés avant de forger votre héros (dépensés : ${totalSpent}/20).`);
-        }
+      if (!attributes || typeof attributes !== 'object' || Array.isArray(attributes)) throw new Error('Attributs requis.');
+      const values = ['force', 'dexterite', 'intelligence', 'charisme'].map(key => attributes[key]);
+      if (!values.every(value => Number.isInteger(value) && value >= 8 && value <= 18) || values.reduce((sum, value) => sum + value - 8, 0) !== 20) {
+        throw new Error('Les attributs doivent être compris entre 8 et 18 et dépenser exactement 20 points.');
       }
 
       // Calcul des stats réelles et enregistrement côté serveur
@@ -82,8 +74,12 @@ function registerCharHandlers(io, socket) {
         classId: classId.trim(),
         title: title ? String(title).trim() : '',
         attributes: attributes || null,
-        color: color || null
+        color: color || null,
+        ownerId: socket.data.identityId
       });
+
+      character.id ||= require('node:crypto').randomUUID();
+      character.ownerId = socket.data.identityId;
 
       // Attribution automatique du paquetage de départ strict selon la classe choisie
       const cleanClassId = String(classId).toLowerCase().trim();
@@ -139,7 +135,7 @@ function registerCharHandlers(io, socket) {
       }
 
       const roomObj = roomManager.getRoom(roomId);
-      const character = roomObj?.characters?.find((c) => c.socketId === socket.id);
+      const character = roomObj?.characters?.find((c) => c.ownerId === socket.data.identityId);
 
       if (!character) {
         throw new Error('Aucun personnage associé à votre session.');
@@ -251,7 +247,7 @@ function registerCharHandlers(io, socket) {
       // Vérification permission MJ (socket.data, rôle transmis, ou session utilisateur en base)
       const room = roomService.rooms.get(roomId);
       const user = room?.users?.find((u) => u.socketId === socket.id);
-      const isMJ = socket.data?.user?.role === 'mj' || clientRole === 'mj' || user?.role === 'mj';
+      const isMJ = socket.data?.roomId === roomId && socket.data?.user?.role === 'mj';
 
       if (!isMJ) {
         throw new Error('Action non autorisée : seul le Maître du Jeu peut modifier les valeurs des personnages.');
@@ -271,7 +267,6 @@ function registerCharHandlers(io, socket) {
 
       // Émission à tous les clients connectés (canal spécifique de la salle + broadcast global de secours)
       io.to(roomId).emit('char:vitals_updated', payload);
-      io.emit('char:vitals_updated', payload);
 
       // Accusé de réception optionnel pour l'émetteur
       if (typeof callback === 'function') {
@@ -296,7 +291,7 @@ function registerCharHandlers(io, socket) {
       // Vérification permission MJ (socket.data, rôle transmis, ou session utilisateur en base)
       const room = roomService.rooms.get(roomId);
       const user = room?.users?.find((u) => u.socketId === socket.id);
-      const isMJ = socket.data?.user?.role === 'mj' || clientRole === 'mj' || user?.role === 'mj';
+      const isMJ = socket.data?.roomId === roomId && socket.data?.user?.role === 'mj';
 
       if (!isMJ) {
         throw new Error('Action non autorisée : seul le Maître du Jeu peut modifier les fiches de personnages.');
@@ -312,7 +307,6 @@ function registerCharHandlers(io, socket) {
 
       // Émission instantanée à tous les clients connectés (canal spécifique + broadcast global)
       io.to(roomId).emit('char:vitals_updated', payload);
-      io.emit('char:vitals_updated', payload);
 
       console.log(`[MJ Edit] Slot ${slot} (${updatedCharacter.name}) mis à jour par le MJ.`);
 

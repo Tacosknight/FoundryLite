@@ -687,3 +687,32 @@ body {
   margin: 4px 0;
 }
 
+
+
+/* Confort des fiches et navigation sur petits écrans. */
+.character-conditions {
+  margin: .65rem;
+  padding: .55rem .7rem;
+  border: 1px solid #78511d;
+  background: #17110b;
+  color: #f5d798;
+  font: 600 1rem/1.4 "Crimson Pro", serif;
+  overflow-wrap: anywhere;
+}
+:focus-visible {
+  outline: 3px solid #fbbf24;
+  outline-offset: 3px;
+}
+@media (max-width: 640px) {
+  nav { max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; }
+  nav button, nav a { flex-shrink: 0; min-height: 44px; }
+  #characters-grid, #characters-grid article { min-width: 0; }
+  #characters-grid article { overflow-wrap: anywhere; }
+  [id^="modal-"] { max-height: 100dvh; overflow-y: auto; }
+  .fixed.inset-0.z-50, .fixed.inset-0.z-40 { align-items: safe center; overflow-y: auto; }
+  .fixed.inset-0.z-50 > div, .fixed.inset-0.z-40 > div { max-height: calc(100dvh - 2rem); overflow-y: auto; }
+  #tactical-shortcuts-panel { max-width: calc(100% - 1.5rem); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}

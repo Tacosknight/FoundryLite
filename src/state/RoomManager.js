@@ -1,5 +1,7 @@
 const fs = require('fs/promises');
 const path = require('path');
+const crypto = require('node:crypto');
+const CampaignRepository = require('../persistence/CampaignRepository');
 
 const ROOMS_FILE_PATH = path.join(__dirname, '../../data/rooms.json');
 const DEFAULT_DEBOUNCE_DELAY_MS = 1000;
@@ -38,6 +40,10 @@ class RoomManager {
     this.rooms = new Map();
     this.debounceTimer = null;
     this.isInitialized = false;
+    this.repository = new CampaignRepository(filePath);
+    this.revision = 0;
+    this.lastPersistenceError = null;
+    this.onPersistenceError = () => {};
   }
 
   /**
@@ -131,8 +137,9 @@ class RoomManager {
     if (this.isInitialized) return;
 
     try {
-      const data = await fs.readFile(this.filePath, 'utf-8');
-      const parsed = JSON.parse(data || '{}');
+      const envelope = await this.repository.load();
+      this.revision = envelope.revision;
+      const parsed = envelope.rooms;
 
       for (const [id, room] of Object.entries(parsed)) {
         if (!room.characters || !Array.isArray(room.characters)) {
@@ -191,11 +198,13 @@ class RoomManager {
         }
 
         room.isSaved = true;
+        room.epoch ||= crypto.randomUUID();
+        room.characters.forEach(c => { c.id ||= crypto.randomUUID(); c.socketId = null; });
         this.rooms.set(id, room);
       }
     } catch (error) {
       if (error.code !== 'ENOENT') {
-        console.error('[RoomManager] Erreur lecture fichier rooms.json :', error.message);
+        throw error;
       }
     }
 
@@ -205,11 +214,17 @@ class RoomManager {
   /**
    * Récupère une salle en mémoire ou l'initialise
    */
-  getRoom(roomId = 'table-ronde') {
-    const cleanId = (roomId || 'table-ronde').trim();
-    if (!this.rooms.has(cleanId)) {
-      this.rooms.set(cleanId, this.createDefaultRoom(cleanId));
-    }
+  createRoom(roomId) {
+    if (this.rooms.has(roomId)) throw new Error('Cette campagne existe déjà.');
+    const room = this.createDefaultRoom(roomId);
+    room.epoch = crypto.randomUUID();
+    this.rooms.set(roomId, room);
+    return room;
+  }
+
+  getRoom(roomId) {
+    const cleanId = String(roomId || '').trim();
+    if (!this.rooms.has(cleanId)) throw new Error('Campagne introuvable.');
     const room = this.rooms.get(cleanId);
     if (!room.scenes || !Array.isArray(room.scenes) || room.scenes.length === 0) {
       const defaultSceneId = 'scene_default';
@@ -245,7 +260,7 @@ class RoomManager {
    * @param {string} socketId 
    * @param {Object} characterData { name, raceId, classId, title, attributes, color }
    */
-  createOrUpdatePlayerCharacter(roomId, socketId, { name, raceId, classId, title, attributes, color }) {
+  createOrUpdatePlayerCharacter(roomId, socketId, { name, raceId, classId, title, attributes, color, ownerId }) {
     const { calculateCharacterStats } = require('../data/rpgRules');
     const room = this.getRoom(roomId);
     if (!room.characters) room.characters = [];
@@ -285,8 +300,8 @@ class RoomManager {
       throw new Error(`Cette couleur est déjà portée par un autre compagnon de table. Veuillez en choisir une autre.`);
     }
 
-    // Recherche si un personnage existe déjà par socketId ou par son nom (sauvegarde précédente)
-    let existingChar = room.characters.find(c => c.socketId === socketId || (c.name && c.name.toLowerCase() === cleanName.toLowerCase()));
+    // Identity is stable across tabs; socket IDs are retained only for legacy presence.
+    let existingChar = room.characters.find(c => ownerId ? c.ownerId === ownerId : c.socketId === socketId);
 
     if (existingChar) {
       // Mise à jour du personnage existant et association au socket actuel
@@ -735,13 +750,14 @@ class RoomManager {
       id,
       type: 'monster',
       name: tokenData.name || 'Monstre',
+      imageUrl: typeof tokenData.imageUrl === 'string' ? tokenData.imageUrl : null,
       icon: tokenData.icon || '👹',
       color: tokenData.color || '#dc2626',
       x: Number(tokenData.x) || 200,
       y: Number(tokenData.y) || 200,
       size: Number(tokenData.size) || 40,
-      hp: Number(tokenData.hp) || 10,
-      maxHp: Number(tokenData.maxHp) || 10,
+      hp: tokenData.hp != null && tokenData.hp !== '' && Number.isFinite(Number(tokenData.hp)) ? Number(tokenData.hp) : 10,
+      maxHp: tokenData.maxHp != null && tokenData.maxHp !== '' && Number.isFinite(Number(tokenData.maxHp)) ? Number(tokenData.maxHp) : 10,
       conditions: Array.isArray(tokenData.conditions) ? tokenData.conditions : []
     };
     room.map.tokens.push(newToken);
@@ -989,7 +1005,11 @@ class RoomManager {
         (playerName && t.name && t.name.toLowerCase() === playerName.toLowerCase())
       ));
 
-      if (pToken) {
+      if (!pToken) {
+        throw new Error('Pion joueur introuvable pour manipuler cette porte.');
+      }
+
+      {
         const dx = door.x2 - door.x1;
         const dy = door.y2 - door.y1;
         const l2 = dx * dx + dy * dy;
@@ -1402,7 +1422,8 @@ class RoomManager {
       if (affectedToken) {
         // Application des dégâts
         if (trap.damage > 0) {
-          affectedToken.hp = Math.max(0, (affectedToken.hp || 10) - trap.damage);
+          const hp = affectedToken.hp != null && affectedToken.hp !== '' ? Number(affectedToken.hp) : NaN;
+          affectedToken.hp = Math.max(0, (Number.isFinite(hp) ? hp : 10) - trap.damage);
           if (affectedToken.type === 'player' && Array.isArray(room.characters)) {
             const char = room.characters.find(
               (c) => c && (c.slot === affectedToken.slot || (c.name && affectedToken.name && c.name.toLowerCase() === affectedToken.name.toLowerCase()))
@@ -1498,7 +1519,8 @@ class RoomManager {
     const condId = zone.effect?.condition || null;
 
     if (dmg > 0) {
-      token.hp = Math.max(0, (token.hp || 10) - dmg);
+      const hp = token.hp != null && token.hp !== '' ? Number(token.hp) : NaN;
+      token.hp = Math.max(0, (Number.isFinite(hp) ? hp : 10) - dmg);
       if (token.type === 'player' && Array.isArray(room.characters)) {
         const char = room.characters.find(
           (c) => c && (c.slot === token.slot || (c.name && token.name && c.name.toLowerCase() === token.name.toLowerCase()))
@@ -1863,7 +1885,7 @@ class RoomManager {
    * Chaque joueur lance un d20, puis l'ordre du tour est déterminé par ordre décroissant des scores de d20.
    * @param {string} roomId 
    */
-  startNewRound(roomId) {
+  startNewRound(roomId, decrementPreviousPlayer = true) {
     const room = this.getRoom(roomId);
     if (!room.map) room.map = this.createDefaultMap();
 
@@ -1882,7 +1904,7 @@ class RoomManager {
     const expiredConditions = [];
     const updatedTokens = [];
 
-    if (prevTurn) {
+    if (prevTurn && decrementPreviousPlayer) {
       const prevToken = (room.map.tokens || []).find(
         (t) => t.type === 'player' && (t.slot === prevTurn.slot || (t.name && prevTurn.name && t.name.toLowerCase() === prevTurn.name.toLowerCase()))
       );
@@ -1894,7 +1916,7 @@ class RoomManager {
     }
 
     // Décrémenter les altérations des monstres à chaque fin de manche
-    (room.map.tokens || []).forEach((t) => {
+    (prevTurn ? room.map.tokens || [] : []).forEach((t) => {
       if (t.type === 'monster' && Array.isArray(t.conditions) && t.conditions.length > 0) {
         const decRes = this.decrementTokenConditions(roomId, t.id);
         if (decRes.expired.length > 0) expiredConditions.push(...decRes.expired);
@@ -2052,7 +2074,7 @@ class RoomManager {
 
     let turnSystem = room.map.turnSystem;
     if (!turnSystem || !Array.isArray(turnSystem.turnOrder) || turnSystem.turnOrder.length === 0) {
-      const roundRes = this.startNewRound(roomId);
+      const roundRes = this.startNewRound(roomId, false);
       if (roundRes) {
         roundRes.expiredConditions = expiredConditions.concat(roundRes.expiredConditions || []);
         roundRes.updatedTokens = updatedTokens.concat(roundRes.updatedTokens || []);
@@ -2066,7 +2088,7 @@ class RoomManager {
     );
 
     if (turnSystem.turnOrder.length === 0) {
-      const roundRes = this.startNewRound(roomId);
+      const roundRes = this.startNewRound(roomId, false);
       if (roundRes) {
         roundRes.expiredConditions = expiredConditions.concat(roundRes.expiredConditions || []);
         roundRes.updatedTokens = updatedTokens.concat(roundRes.updatedTokens || []);
@@ -2076,7 +2098,7 @@ class RoomManager {
 
     // Si on a atteint la fin du tour d'ensemble -> Lancement autonome de la nouvelle manche !
     if (turnSystem.currentIndex + 1 >= turnSystem.turnOrder.length) {
-      const roundRes = this.startNewRound(roomId);
+      const roundRes = this.startNewRound(roomId, false);
       if (roundRes) {
         roundRes.expiredConditions = expiredConditions.concat(roundRes.expiredConditions || []);
         roundRes.updatedTokens = updatedTokens.concat(roundRes.updatedTokens || []);
@@ -2168,7 +2190,7 @@ class RoomManager {
     };
 
     inv.clues.push(clue);
-    this.persist();
+    this.triggerAutoSave();
     return clue;
   }
 
@@ -2188,7 +2210,7 @@ class RoomManager {
     });
 
     clue.updatedAt = new Date().toISOString();
-    this.persist();
+    this.triggerAutoSave();
     return clue;
   }
 
@@ -2204,7 +2226,7 @@ class RoomManager {
 
     clue.x = Math.round(x);
     clue.y = Math.round(y);
-    this.persist();
+    this.triggerAutoSave();
     return clue;
   }
 
@@ -2217,7 +2239,7 @@ class RoomManager {
 
     inv.clues = inv.clues.filter((c) => c.id !== clueId);
     inv.links = inv.links.filter((l) => l.fromId !== clueId && l.toId !== clueId);
-    this.persist();
+    this.triggerAutoSave();
     return true;
   }
 
@@ -2234,7 +2256,7 @@ class RoomManager {
     clue.isSealed = false;
     clue.unsealedBy = unsealedBy;
     clue.unsealedAt = new Date().toISOString();
-    this.persist();
+    this.triggerAutoSave();
     return clue;
   }
 
@@ -2259,7 +2281,7 @@ class RoomManager {
     };
 
     clue.deductions.push(deduction);
-    this.persist();
+    this.triggerAutoSave();
     return { clue, deduction };
   }
 
@@ -2295,7 +2317,7 @@ class RoomManager {
     };
 
     inv.links.push(link);
-    this.persist();
+    this.triggerAutoSave();
     return link;
   }
 
@@ -2307,7 +2329,7 @@ class RoomManager {
     if (!inv) return false;
 
     inv.links = inv.links.filter((l) => l.id !== linkId);
-    this.persist();
+    this.triggerAutoSave();
     return true;
   }
 
@@ -2320,7 +2342,7 @@ class RoomManager {
 
     inv.clues = [];
     inv.links = [];
-    this.persist();
+    this.triggerAutoSave();
     return true;
   }
 
@@ -2523,21 +2545,22 @@ class RoomManager {
     if (!prop) return null;
 
     const title = prop.name || 'Indice decouvert';
-    const content = prop.revealedDoc
-      ? `${prop.description ? prop.description + '\n\n---\n\n' : ''}${prop.revealedDoc}`
+    const revealedDoc = prop.isDocRevealed && prop.revealedDoc;
+    const content = revealedDoc
+      ? `${prop.description ? prop.description + '\n\n---\n\n' : ''}${revealedDoc}`
       : (prop.description || 'Element examine sur le terrain.');
 
     const clueData = {
       title: `[Objet] ${title}`,
       content,
-      type: prop.revealedDoc ? 'document' : 'note',
+      type: revealedDoc ? 'document' : 'note',
       image: prop.imageUrl || null,
       author: authorName,
       status: 'evidence',
       color: '#fef3c7'
     };
 
-    return this.addInvestigationClue(roomId, clueData);
+    return this.addClue(roomId, clueData);
   }
 
   /**
@@ -2548,26 +2571,30 @@ class RoomManager {
       clearTimeout(this.debounceTimer);
     }
 
-    this.debounceTimer = setTimeout(async () => {
-      await this.persist();
+    this.debounceTimer = setTimeout(() => {
       this.debounceTimer = null;
+      this.persist().catch(error => {
+        this.lastPersistenceError = error;
+        this.onPersistenceError(error);
+      });
     }, this.debounceDelay);
+    this.debounceTimer.unref?.();
   }
 
-  /**
-   * Écriture atomique sur le disque dur uniquement pour les salles sauvegardées
-   */
   async persist() {
+    const rooms = Object.create(null);
+    for (const [id, room] of this.rooms) {
+      if (!room.isSaved) continue;
+      const { map, _restoring, ...durable } = room;
+      rooms[id] = durable;
+    }
+    const revision = ++this.revision;
     try {
-      const dirPath = path.dirname(this.filePath);
-      await fs.mkdir(dirPath, { recursive: true });
-      // Seules les salles sauvegardées ou actives avec isSaved !== false sont conservées sur le disque
-      const savedEntries = Array.from(this.rooms.entries()).filter(([_, room]) => room.isSaved);
-      const obj = Object.fromEntries(savedEntries);
-      await fs.writeFile(this.filePath, JSON.stringify(obj, null, 2), 'utf-8');
-      console.log(`[RoomManager] ✅ Fichier rooms.json synchronisé (${savedEntries.length} salles enregistrées).`);
+      await this.repository.save({ schemaVersion: 1, revision, rooms });
+      this.lastPersistenceError = null;
     } catch (error) {
-      console.error('[RoomManager Error] Échec de sauvegarde dans rooms.json :', error.message);
+      this.lastPersistenceError = error;
+      throw error;
     }
   }
 
@@ -2580,6 +2607,7 @@ class RoomManager {
       this.debounceTimer = null;
     }
     await this.persist();
+    await this.repository.flush();
   }
 }
 

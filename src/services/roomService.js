@@ -1,165 +1,60 @@
-const fs = require('fs/promises');
-const path = require('path');
-
-const ROOMS_FILE_PATH = path.join(__dirname, '../../data/rooms.json');
+'use strict';
+const { hash, secret } = require('./sessionService');
 
 class RoomService {
-  constructor() {
-    this.rooms = new Map();
-    this.isInitialized = false;
+  constructor(roomManager) { this.manager = roomManager; this.rooms = new Map(); }
+  async init() {}
+  getRoom(id) { return this.rooms.get(id) || null; }
+  hasActiveMJ(id) { return Boolean(this.rooms.get(id)?.users.some(u => u.role === 'mj')); }
+  membership(roomId, identityId) { return this.manager.rooms.get(roomId)?.access?.members?.[identityId] || null; }
+  async create(roomId, identityId) {
+    if (!/^[\p{L}\p{N}_ -]{1,80}$/u.test(roomId)) throw new Error('Nom de campagne invalide (80 caractères maximum).');
+    if (this.manager.rooms.has(roomId)) throw new Error('Cette campagne existe déjà. Une invitation ou un rattachement local est nécessaire.');
+    const room = this.manager.createRoom(roomId);
+    room.access = { ownerId: identityId, members: { [identityId]: { role: 'mj' } }, invitations: {} };
+    room.isSaved = true;
+    await this.manager.persist();
+    return room;
   }
-
-  /**
-   * Initialise le service en chargeant les données depuis rooms.json
-   */
-  async init() {
-    if (this.isInitialized) return;
-
-    try {
-      const data = await fs.readFile(ROOMS_FILE_PATH, 'utf-8');
-      const parsed = JSON.parse(data || '{}');
-      for (const [id, room] of Object.entries(parsed)) {
-        // Au démarrage, on réinitialise les utilisateurs connectés
-        room.users = [];
-        this.rooms.set(id, room);
-      }
-    } catch (error) {
-      if (error.code === 'ENOENT') {
-        await this.persist();
-      } else {
-        console.error('[RoomService] Erreur lors du chargement de rooms.json :', error.message);
-      }
+  async invite(roomId, identityId, characterId) {
+    if (this.membership(roomId, identityId)?.role !== 'mj') throw new Error('Action réservée au MJ.');
+    const room = this.manager.rooms.get(roomId);
+    if (characterId && !room.characters.some(c => c.id === characterId)) throw new Error('Personnage introuvable.');
+    const code = secret();
+    room.access.invitations[hash(code)] = { expiresAt: Date.now() + 86400000, characterId: characterId || null };
+    await this.manager.persist();
+    return code;
+  }
+  async accept(roomId, identityId, code) {
+    const room = this.manager.rooms.get(roomId);
+    const invite = typeof code === 'string' && room?.access?.invitations?.[hash(code)];
+    if (!invite || invite.expiresAt <= Date.now()) throw new Error('Invitation invalide ou expirée.');
+    if (!room.access.members[identityId] && Object.values(room.access.members).filter(m => m.role === 'player').length >= 4) throw new Error('La campagne comporte déjà quatre joueurs.');
+    if (!room.access.members[identityId]) room.access.members[identityId] = { role: 'player' };
+    if (invite.characterId) {
+      const char = room.characters.find(c => c.id === invite.characterId);
+      if (char) char.ownerId = identityId;
     }
-    this.isInitialized = true;
+    delete room.access.invitations[hash(code)];
+    await this.manager.persist();
   }
-
-  /**
-   * Sauvegarde l'état actuel des salles dans rooms.json
-   */
-  async persist() {
-    try {
-      const obj = Object.fromEntries(this.rooms.entries());
-      await fs.writeFile(ROOMS_FILE_PATH, JSON.stringify(obj, null, 2), 'utf-8');
-    } catch (error) {
-      console.error('[RoomService] Erreur lors de la sauvegarde dans rooms.json :', error.message);
-    }
-  }
-
-  /**
-   * Récupère ou instancie une salle
-   */
-  /**
-   * Vérifie si une salle a un MJ actuellement connecté
-   */
-  hasActiveMJ(roomId) {
-    const room = this.rooms.get(roomId);
-    if (!room || !Array.isArray(room.users)) return false;
-    return room.users.some(u => u.role === 'mj');
-  }
-
-  /**
-   * Ajoute un utilisateur à une salle en respectant les contraintes strictes :
-   * - Une partie ne peut être rejointe que si un MJ l'a créée et est présent
-   * - 1 seul MJ et maximum 4 joueurs
-   */
-  async joinRoom(roomId, { socketId, username, role }) {
-    await this.init();
-
-    const normalizedRole = role === 'mj' ? 'mj' : 'player';
+  async joinRoom(roomId, { socketId, identityId, username }) {
+    const member = this.membership(roomId, identityId);
+    if (!member) throw new Error('Une invitation est nécessaire pour rejoindre cette campagne.');
     let room = this.rooms.get(roomId);
-
-    // Si la salle n'existe pas encore :
-    if (!room) {
-      if (normalizedRole === 'player') {
-        throw new Error(`Cette partie n'existe pas ou le Maître du Jeu (MJ) ne l'a pas encore créée.`);
-      }
-
-      // Si c'est le MJ qui se connecte, on initialise/active la salle
-      room = {
-        id: roomId,
-        createdAt: new Date().toISOString(),
-        users: []
-      };
-      this.rooms.set(roomId, room);
-    } else {
-      // Si la salle existe déjà mais n'a pas encore de MJ connecté
-      if (normalizedRole === 'player' && !this.hasActiveMJ(roomId)) {
-        // Si la salle a déjà été créée par un MJ mais qu'il est en train de se reconnecter
-        // On permet au joueur de rejoindre pour éviter le blocage lors d'un rafraîchissement
-        console.log(`[RoomService] Joueur ${username} rejoint la salle existante "${roomId}"`);
-      }
-    }
-
-    // Vérification de la présence d'un MJ si la demande est pour un MJ
-    if (normalizedRole === 'mj') {
-      const existingMj = room.users.find((u) => u.role === 'mj');
-      if (existingMj && existingMj.socketId !== socketId) {
-        // Si le même pseudo de MJ se reconnecte (refresh navigateur ou réseau)
-        if (existingMj.username.trim().toLowerCase() === username.trim().toLowerCase()) {
-          console.log(`[RoomService] Le MJ "${username}" se reconnecte à la salle "${roomId}".`);
-          room.users = room.users.filter((u) => u.socketId !== existingMj.socketId);
-        } else {
-          throw new Error('La place de Maître du Jeu (MJ) est déjà occupée dans cette salle.');
-        }
-      }
-    }
-
-    // Vérification de la limite de 4 joueurs
-    if (normalizedRole === 'player') {
-      const currentPlayers = room.users.filter(u => u.role === 'player' && u.socketId !== socketId);
-      if (currentPlayers.length >= 4) {
-        throw new Error('La salle est complète (maximum 4 joueurs).');
-      }
-    }
-
-    // Retirer l'utilisateur s'il était déjà dans la liste (reconnexion)
+    if (!room) { room = { id: roomId, users: [] }; this.rooms.set(roomId, room); }
+    const user = { socketId, identityId, username, role: member.role, joinedAt: new Date().toISOString() };
     room.users = room.users.filter(u => u.socketId !== socketId);
-
-    const user = {
-      socketId,
-      username: username.trim(),
-      role: normalizedRole,
-      joinedAt: new Date().toISOString()
-    };
-
     room.users.push(user);
-    await this.persist();
-
     return { room, user };
   }
-
-  /**
-   * Retire un utilisateur par son socketId lors d'une déconnexion
-   */
   async removeUser(socketId) {
-    for (const [roomId, room] of this.rooms.entries()) {
-      const userIndex = room.users.findIndex(u => u.socketId === socketId);
-      if (userIndex !== -1) {
-        const [removedUser] = room.users.splice(userIndex, 1);
-        await this.persist();
-        return { roomId, user: removedUser, room };
-      }
+    for (const [roomId, room] of this.rooms) {
+      const idx = room.users.findIndex(u => u.socketId === socketId);
+      if (idx >= 0) { const [user] = room.users.splice(idx, 1); return { roomId, room, user }; }
     }
     return null;
   }
-
-  /**
-   * Retourne une salle par son ID
-   */
-  getRoom(roomId) {
-    return this.rooms.get(roomId) || null;
-  }
-
-  /**
-   * Supprime une salle du service
-   */
-  async deleteRoom(roomId) {
-    const cleanId = (roomId || '').trim();
-    if (this.rooms.has(cleanId)) {
-      this.rooms.delete(cleanId);
-      await this.persist();
-    }
-  }
+  async deleteRoom(id) { this.rooms.delete(id); }
 }
-
-module.exports = new RoomService();
+module.exports = { RoomService };
